@@ -18,6 +18,7 @@ Ask the user or reporter only what the ticket does not say; propose defaults and
 
 - Model, source format (PyTorch / ONNX / TFLite), file location, input shapes (static? dynamic dims?)
 - Path: QNN direct, SNPE, ExecuTorch QNN backend, or ORT QNN EP — and the SDK version
+- Platform: Android or Windows on Snapdragon (ORT QNN EP is the common path on Windows)
 - SoC / Hexagon arch, precision (fp16, int8/int16 with which calibration data), batch
 - Acceptance: accuracy metric and threshold vs. the fp32 reference (e.g. cosine similarity / max-abs-error per
   output, or task metric), latency target, "no CPU fallback" or an allowed fallback list
@@ -38,8 +39,10 @@ Then for each distinct op, check before designing anything:
 1. `$LOOP_KNOWLEDGE/ops/<op>.md` — has the team already solved this op? Reuse the recipe.
 2. The SDK op definitions / supported-op tables for this arch and version (Confluence / SDK docs) — maybe a
    newer SDK or a different attribute combination is supported.
-3. Upstream: has ExecuTorch / ORT already added a builder or decomposition in a newer version? (CodeAtlas or
-   internal GitHub search.)
+3. CodeAtlas: `find_case` / `find_knowledge` for the op name (team history), `search_semantic` for existing
+   builders or decomposition passes for similar ops, `get_references` on the closest existing builder to copy its
+   pattern and test.
+4. Upstream: has ExecuTorch / ORT already added a builder or decomposition in a newer version? (internal GitHub.)
 
 ## 3. Decide per op — cheapest viable rung first
 
@@ -51,7 +54,9 @@ Then for each distinct op, check before designing anything:
 | 3 | Custom op package (HTP op package / SNPE UDO) | no reasonable composition, or composition too slow |
 | 4 | Allowed CPU fallback | only if SPEC allows it and latency still meets target |
 
-Where the code for rungs 1–2 typically lives (confirm in your tree with CodeAtlas — paths move between versions):
+Where the code for rungs 1–2 typically lives (confirm with CodeAtlas `search_semantic` / `find_symbol` — paths
+move between versions). Rewrites are usually Python (export / partitioner / passes / converter) or C++ (ORT EP op
+builders, QNN op packages); the gates for each language are in `skills/references/cpp-python-gates.md`:
 - ExecuTorch QNN backend: op builders under `backends/qualcomm/builders/`, graph passes / decompositions under
   `backends/qualcomm/_passes/`, partitioner support lists.
 - ONNX Runtime QNN EP: op builders under `onnxruntime/core/providers/qnn/builder/opbuilder/`.
@@ -82,4 +87,4 @@ Finish with:
 - `HANDOFF.md` with the evidence table (op → rung → unit test → accuracy → latency), next action.
 - A knowledge entry per newly solved op: `$LOOP_KNOWLEDGE/ops/<op>.md` (template in
   `knowledge-template/ops/_TEMPLATE.md`) — this is the most valuable reusable asset this skill produces.
-- Proposed Jira comment + labels via `jira.py` (dry-run first).
+- Proposed Jira comment (in English) + labels via `jira.py` (dry-run first).

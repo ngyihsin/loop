@@ -1,7 +1,7 @@
 # Design: loop
 
 **Created:** 2026-10-19
-**Status:** Draft v2
+**Status:** Draft v3
 
 **Project Docs:** [README](../README.md) | [SPEC](SPEC.md) | [DESIGN](DESIGN.md) *(you are here)* | [references](references.md) | [HANDOFF](../HANDOFF.md)
 
@@ -9,202 +9,230 @@
 
 ## Design Philosophy
 
-1. **Jira 是唯一的真相來源**(來自 autopilot)。Agent 不做沒有票的工作;所有狀態寫回 Jira。
-2. **Prompt / skill 才是產品**(來自 autopilot)。Orchestrator 是薄薄的 plumbing;品質取決於每個 skill。
-3. **Skill-first,自動化後到**。每個 agent 都是一個 Claude Code skill(`.claude/skills/<name>/SKILL.md`),可以先手動 `/bug-analyze PROJ-123` 跑,信任建立後才交給 orchestrator 排程。這樣 Phase 0 就有價值,不用等整套系統完成。
-4. **Dossier 是 agent 之間唯一的交接介面**(來自 docforge 的 HANDOFF 概念)。下一個 agent 只需讀 dossier + Jira,不依賴前一個 agent 的對話紀錄。
-5. **證據優先**(來自 pstack bug-fix playbook)。每一行修改都要能追溯到 log / 重現 / 測試的證據;不做「可能有幫助」的修改。
-6. **人在關鍵點把關**:需求核准、Gerrit +2、報告送出。Agent 遇到不確定就 `agent:blocked` 並說明缺什麼(autopilot 的 "When in doubt, block")。
+1. **Jira is the source of truth** (from autopilot). No work without a ticket; every state change goes back to Jira.
+2. **Skills are the product** (autopilot: "prompts are the product"). The orchestrator is thin plumbing; quality
+   comes from the skills.
+3. **Skill first, automation later.** Each agent is a `SKILL.md` you can run by hand (`/bug-analyze NPU-123`) in
+   Claude Code or Codex. The orchestrator schedules it only after it has proven itself, so Phase 0 is useful on
+   day one.
+4. **The dossier is the only hand-off** (from docforge's HANDOFF). The next agent reads the dossier and Jira, never
+   the previous agent's transcript.
+5. **Evidence first** (from pstack's bug-fix playbook). Every changed line traces to a log, a reproduction, or a
+   test. No "might help" changes.
+6. **Humans gate the decisive points:** spec approval, Gerrit +2, sending a report. When unsure, an agent blocks
+   and says what is missing (autopilot: "when in doubt, block").
 
 ---
 
 ## Architecture Overview
 
 ```
-                ┌──────────────────────── Jira (source of truth) ────────────────────────┐
-                │  Bug / Story / Task   +  labels: agent:* , 狀態, 留言, 附件(log)         │
-                └───────▲──────────────────────┬──────────────────────────────▲──────────┘
-                        │ 留言 / label / 狀態    │ JQL poll                       │
-                        │                      ▼                                │
-                ┌───────┴──────────────── Orchestrator (thin) ──────────────────┴───────┐
-                │  依 (issue type, label, 狀態) 查路由表 → 選 skill → 開 workspace slot   │
-                │  timeout / 重試上限 / 平行數 / circuit breaker                        │
-                └───┬──────────┬──────────┬───────────┬───────────┬───────────┬────────┘
-                    ▼          ▼          ▼           ▼           ▼           ▼
-                 triage    bug-analyze  implement   feature-   review-     report
-                                        model-     spec       prep/respond (open-slide)
-                                        enable
-                    │          │          │           │           │           │
-                    └──────────┴────┬─────┴───────────┴───────────┴───────────┘
-                                    ▼
-                    ┌──────────── dossier/<JIRA-KEY>/ ────────────┐      ┌──── Knowledge ────┐
-                    │ analysis.md  SPEC.md  DESIGN.md  HANDOFF.md │ ◀──▶ │ wiki/ (每個 git)    │
-                    │ review-notes.md  deck/  runs/*.log         │      │ lessons/ (root cause)│
-                    └─────────────────────────────────────────────┘      └─────────────────────┘
-                                    │
-                                    ▼
-             Android tree (repo sync)  ──  只在負責的 2–3 個 git 開 branch  ──▶  Gerrit (repo upload)
-                                                                              │ Verified (CI) / Code-Review
-                                                                              ▼
-                                                                         Monitor 迴圈
+           ┌──────────────────────────── Jira (source of truth) ─────────────────────────────┐
+           │  Bug / Story / Task  +  labels agent:*, comments, attachments (logs, dumps)       │
+           └──────▲──────────────────────────┬────────────────────────────────────▲─────────┘
+                  │ comments / labels         │ JQL poll                            │
+           ┌──────┴────────────────── Orchestrator (thin, Python) ────────────────┴─────────┐
+           │  (issue type, label) → route table → skill → workspace slot / device lock       │
+           │  timeouts, retry caps, parallelism, circuit breaker; runner: claude -p | codex   │
+           └──┬─────────┬───────────┬────────────┬────────────┬────────────┬───────────┬────┘
+              ▼         ▼           ▼            ▼            ▼            ▼           ▼
+           triage  bug-analyze  model-enable  feature-spec  implement  review-prep  report
+                                                           (+ fixer,   / respond   (open-slide)
+                                                          repo-onboard)
+              └─────────┴───────────┴─────┬──────┴────────────┴────────────┴───────────┘
+                                          ▼
+           ┌────────────── dossier/<KEY>/ ──────────────┐     ┌──────────── Knowledge ─────────────┐
+           │ ticket.md analysis.md op-gap.md SPEC.md    │ ◀─▶ │ CodeAtlas MCP (code graph, cases,  │
+           │ HANDOFF.md device-runs/ review-notes.md    │     │   docs) · Confluence · shared dirs │
+           │ deck/ runs/                                │     │ knowledge repo: ops/ lessons/ repos/│
+           └────────────────────────────────────────────┘     └─────────────────────────────────────┘
+                    │                                │
+                    ▼                                ▼
+     synced tree: branch loop/<KEY> in owned gits    devices: Android (adb) · Windows on Snapdragon (ssh)
+                    │
+                    ▼  repo upload --wip (topic = KEY)
+                 Gerrit ── Jenkins Verified / Code-Review ──▶ monitor loop (fixer, review-respond)
 ```
 
 ---
 
-## Agent 類型與路由
+## Agents and Routing
 
-每個 agent = 一個 skill + 明確的輸入 / 輸出 / 權限。
+Each agent is one skill with explicit inputs, outputs, and permissions.
 
-| Agent (skill) | 觸發條件(預設) | 讀 | 寫 | 能改 code? | 完成後 |
+| Agent (skill) | Trigger (default) | Reads | Writes | Changes code? | Then |
 |---|---|---|---|---|---|
-| `triage` | 新票,沒有 `agent:*` label | Jira、wiki | Jira 留言、label | 否 | `agent:analyze` 或 `agent:needs-info` |
-| `bug-analyze` | `agent:analyze` | 附件 log、tree(全部可讀)、wiki、lessons | `analysis.md`、Jira 留言 | 否 | `agent:fix-ready`(人可審) |
-| `feature-spec` | Story + `agent:spec` | Jira、Confluence、CodeAtlas | `SPEC.md` `DESIGN.md` `IMPLEMENTATION-GUIDE.md`、Jira sub-task | 否 | **人核准**後 sub-task 進 `agent:ready` |
-| `model-enable` | Story + `agent:model` | 模型、converter / partitioner log、`ops/` 知識、SDK op 表 | `SPEC.md`、`op-gap.md`,再交給 `implement` | 階段二才改 | 實機精度 + 效能證據 |
-| `implement` (= bug-fix) | `agent:ready` / `agent:fix-ready` | dossier、tree | 負責 git 的 branch、Gerrit change | **是** | `agent:in-review` |
-| `review-prep` | change 剛上傳 | diff、dossier | `review-notes.md`、Gerrit change 說明 | 否 | 通知 reviewer |
-| `review-respond` / `fixer` | Gerrit 有新 comment / Verified -1 / merge conflict | Gerrit、CI log | 同一個 change 的新 patchset | **是** | 維持 `agent:in-review` 或 `agent:blocked` |
-| `report` | 人手動觸發,或 Epic 完成 | dossier、Jira、git log | `deck/`(open-slide) | 否 | 人 review 投影片 |
-| `reflect` | 每次 run 結束(成功或失敗) | run log、dossier | `knowledge/lessons/`、wiki 更新 | 否 | — |
+| `triage` | new ticket, no `agent:*` label | Jira, `find_case` | Jira comment, label | no | `agent:analyze` or `agent:needs-info` |
+| `bug-analyze` ✅ | `agent:analyze` | attachments, whole tree, CodeAtlas, knowledge | `analysis.md`, Jira comment | no | `agent:fix-ready` (human-reviewable) |
+| `model-enable` ✅ | Story + `agent:model` | model, converter/partitioner logs, `ops/`, SDK op tables | `SPEC.md`, `op-gap.md` → `implement` | via implement | on-device accuracy + latency evidence |
+| `feature-spec` ✅ | Story + `agent:spec` | Jira, Confluence, CodeAtlas | `SPEC.md`, `DESIGN.md`, `IMPLEMENTATION-GUIDE.md`, sub-tasks | no | sub-tasks get `agent:ready` **after human approval** |
+| `repo-onboard` ✅ | no overview for an owned git | Jenkinsfile, build files, CodeAtlas | `repos/<git>/overview.md` | no | engineer reviews |
+| `implement` | `agent:ready` / `agent:fix-ready` | dossier, overview gates | branch in owned git, Gerrit change | **yes** | `agent:in-review` |
+| `review-prep` | change uploaded | diff, dossier | `review-notes.md`, change description | no | reviewers notified |
+| `review-respond` / `fixer` | new Gerrit comment / Verified -1 / conflict | Gerrit, Jenkins console log | new patchset on the same change | **yes** | stays `agent:in-review` or `agent:blocked` |
+| `report` | manual, or epic done | dossier, Jira, git log | `deck/` (open-slide) | no | human reviews slides |
+| `reflect` | end of every run | run summary, dossier | knowledge repo proposals | no | — |
 
-### 為什麼 bug-analyze 和 implement 分開?
+✅ = skill exists in `skills/` (Phase 0).
 
-Android bug 最難的是**找 root cause**,不是改 code。分開之後:
-- Phase 1 只開 `bug-analyze`(唯讀),就能先驗證 agent 判斷的品質,風險為零。
-- 人可以在分析和修改之間插一個審查點(`agent:fix-ready` 需要人加,或設定成自動)。
-- 分析失敗的模式會被 `reflect` 收集,改進 prompt。
+### Why split bug-analyze from implement?
 
----
-
-## Jira 狀態機(label 驅動)
-
-為了不需要 Jira admin 改 workflow,用 label 表示 agent 狀態,原本的 Jira status 只做粗略同步(例如 In Progress / In Review / Resolved,名稱在設定檔對應)。
-
-```
-(新票) ──triage──▶ agent:needs-info ──(人補資料, 移除 label)──▶ (重新 triage)
-   │
-   └──▶ agent:analyze ──bug-analyze──▶ agent:fix-ready ──implement──▶ agent:in-review ──(Gerrit merged)──▶ Resolved
-                                │                         │                  │
-                                └────────────┬────────────┴──────────────────┘
-                                             ▼
-                                       agent:blocked(留言說明缺什麼;人處理後換回上一個 label)
-
-Story ──agent:spec──▶ feature-spec(多輪,人回答問題) ──人核准──▶ 拆 sub-task,每個 agent:ready ──▶ implement ...
-```
-
-規則:
-- 一張票同時只會有一個 `agent:*` label(orchestrator 負責互斥,換 label 是原子操作)。
-- 每個 agent 開始時加 `agent:running`,結束時移除;crash 後由 orchestrator 依 timeout 清理(idempotent)。
-- 只處理 `assignee = 我` 或特定 component 的票(由 JQL 設定),避免碰到別人的票。
+In this stack the hard part is the **root cause**, not the edit. Splitting them means Phase 1 can run analysis
+read-only (zero risk) and measure agent judgment; a human can review between analysis and change; and `reflect`
+learns from analysis failures separately from build failures.
 
 ---
 
-## Workspace(Android repo)
+## Jira State Machine (label-driven)
 
-autopilot 每個 issue 一個 git worktree;Android tree 太大不能每張票 sync 一份。設計:
+Agent state lives in labels so no Jira admin change is needed; the Jira status is synced only coarsely.
 
 ```
-~/loop/
-  mirror/                 # repo init --mirror(可選,省頻寬/硬碟)
-  slots/
-    slot-1/               # 完整 repo sync 的 tree + out/(增量 build 用)
-    slot-2/               # 平行數 = slot 數;起始建議 1
-  dossier/<JIRA-KEY>/
-  knowledge/
+(new) ──triage──▶ agent:needs-info ──(human adds info, removes label)──▶ (triage again)
+  │
+  └──▶ agent:analyze ──bug-analyze──▶ agent:fix-ready ──implement──▶ agent:in-review ──(merged)──▶ Resolved
+                             │                    │                        │
+                             └──────────┬─────────┴────────────────────────┘
+                                        ▼
+                                  agent:blocked (comment says what is missing; human sets the previous label back)
+
+Story ──agent:spec──▶ feature-spec (rounds of Q&A) ──human approves──▶ sub-tasks, each agent:ready ──▶ implement
+Story ──agent:model─▶ model-enable (SPEC + op-gap) ──human approves plan──▶ implement ──▶ device verification
 ```
 
-- 每個 slot 是一份完整 tree;任務開始時在**負責的 git** 執行 `repo start loop/<JIRA-KEY> <project>`,其他 git 保持 manifest revision。
-- 任務結束後 `repo abandon` 回乾淨狀態,slot 歸還;`out/` 保留以加速下一次增量 build。
-- 寫入權限:sandbox 只允許寫 `slots/<n>/<負責的 git 路徑>`、`out/`、`dossier/<KEY>/`。其他路徑唯讀。
-- Build / test 指令寫在每個 git 的設定(例如 `m <module>`、`atest <test>`),不讓 agent 自己猜整棵 build。
-- 唯讀分析(triage、bug-analyze)不需要獨占 slot,可共用一份唯讀 tree,平行度較高。
+Rules:
+- At most one `agent:*` stage label per ticket; the orchestrator swaps labels in one update.
+- A running agent adds `agent:running` and removes it at the end; after a crash the orchestrator clears it on
+  timeout (idempotent restarts).
+- Only tickets matching the base JQL (assignee or component) are touched.
 
 ---
 
-## Gerrit + Jenkins 介接
+## Workspace
+
+autopilot creates a git worktree per issue; a full Android-manifest tree is too large for that.
+
+```
+~/loop-work/
+  slots/slot-1/     # full synced tree + build output dirs (kept for incremental builds)
+  slots/slot-2/     # writable parallelism = number of slots; start with 1
+```
+
+- At task start: `repo start loop/<KEY> <owned project>`; other gits stay at the manifest revision.
+- At task end: `repo abandon loop/<KEY>` (after the Gerrit change exists), slot released, build output kept.
+- Write access: only owned gits in the slot, its build output, and `dossier/<KEY>/`.
+- Read-only stages (triage, bug-analyze, model-enable gap analysis) can share one tree without taking a slot.
+
+### C++ / Python build and test gates
+
+The stack is C++ (runtime, EP op builders, DSP code, FastRPC) and Python (converters, quantizers, ExecuTorch export
+and passes, tests). Builds are multi-target: host, Android aarch64, **Windows ARM64**, Hexagon DSP.
+
+- Gates are **per git**, discovered by `repo-onboard` from the Jenkinsfile and build files, verified by running
+  them, and stored in `knowledge/repos/<git>/overview.md`. Agents never invent build commands.
+- `skills/references/cpp-python-gates.md` defines what the gates must cover: every reached target builds, format
+  and lint on changed lines (`git clang-format`, ruff/black), clang-tidy / mypy if configured, unit tests (gtest,
+  pytest), sanitizer builds when available, ABI check for exported symbols, pybind/nanobind extension rebuilds.
+- On-device tests run through the `device` skill.
+
+---
+
+## Gerrit + Jenkins
 
 | autopilot (GitHub) | loop (Gerrit) |
 |---|---|
-| 開 PR | `repo upload --cbr -t`(topic = JIRA-KEY),初期加 `--wip` 或 private |
-| 跨 repo 改動 | 同一個 topic 串多個 change |
-| CI checks | Jenkins 投的 Verified label;失敗時從 Jenkins console log 讀錯誤 |
-| auto-merge | **不做**;人 +2 + submit |
-| fixer 用 `git merge`(不 force push) | Gerrit 用新 patchset(amend + 保留 Change-Id),rebase 用 Gerrit 的 rebase |
-| review comments | Gerrit REST API 讀 unresolved comments,回覆後標 resolved |
+| open a PR | `repo upload --cbr --wip -t` (topic = KEY) |
+| cross-repo change | several changes sharing one topic |
+| CI checks | Jenkins Verified vote; failure details from the Jenkins console log |
+| auto-merge | **never**; a human +2s and submits |
+| fixer merges main, never force-pushes | new patchset (amend, keep Change-Id); rebase via Gerrit |
+| review comments | Gerrit REST: unresolved comments → reply → resolve |
 
-Commit message 規範:第一行 `[JIRA-KEY] <summary>`,含 `Bug: JIRA-KEY`、`Test:` 欄位(Android 慣例)、`Change-Id`。
-
----
-
-## Dossier(每張票的交接資料夾)
-
-```
-dossier/PROJ-123/
-  HANDOFF.md          # 目前狀態、下一步、誰(哪個 agent)最後動過 — 每個 agent 結束都要更新
-  analysis.md         # bug-analyze 輸出:現象、證據(log 行號)、root cause、建議修法、信心
-  SPEC.md DESIGN.md IMPLEMENTATION-GUIDE.md   # feature-spec / model-enable 輸出(docforge 格式)
-  review-notes.md     # review-prep 輸出:改了什麼、為什麼、怎麼驗證、風險
-  attachments/        # 從 Jira 下載的 log / bugreport(不進 git)
-  deck/               # report 輸出(open-slide)
-  runs/               # 每次 agent run 的摘要(給 reflect 用)
-```
-
-Dossier 預設放在工作站本機 `$LOOP_DOSSIER`(git-ignore,不外流);需要分享時把摘要貼回 Jira,值得保留的經驗進內部知識 repo。
+Commit message: `[KEY] <summary>`, with `Bug: KEY`, `Test: <commands run>`, and the `Change-Id` from the hook.
 
 ---
 
-## 知識來源
+## Dossier
 
-不重建公司已有的東西,loop 只補「萃取後的經驗」這一層:
+```
+dossier/NPU-123/
+  ticket.md ticket.json attachments/   # jira.py fetch
+  HANDOFF.md        # state, next action, last stage — updated by every stage
+  analysis.md       # bug-analyze: symptom, evidence, root cause, proposed fix, confidence
+  SPEC.md DESIGN.md IMPLEMENTATION-GUIDE.md   # feature-spec / model-enable (docforge format)
+  op-gap.md         # model-enable: op → rung → evidence
+  device-runs/      # device skill: one folder per run
+  review-notes.md   # review-prep
+  deck/             # report (open-slide)
+  runs/             # per-run summaries for reflect
+```
 
-| 來源 | 用途 | Agent 怎麼用 |
+Dossiers stay on the workstation (`$LOOP_DOSSIER`, git-ignored). Summaries go to Jira; reusable lessons go to the
+internal knowledge repo.
+
+---
+
+## Knowledge
+
+loop does not rebuild what the company already has. It adds only the distilled-experience layer.
+
+| Source | Use | How agents use it |
 |---|---|---|
-| **CodeAtlas MCP** | code graph、caller/callee、semantic search(取代 TencentDB 的 CodeGraph) | 追 error 字串 → 產生它的 code;改動前做影響分析 |
-| **Confluence** | 設計文件、SDK release note、op 支援表 | Atlassian MCP 或 REST(同一組 token);引用頁面 URL |
-| **共享資料夾** | 模型、測試資料、舊報告 | 唯讀掛載,引用路徑 |
-| **內部 GitHub** | upstream / 其他團隊的 code、知識 repo 本身 | GitHub MCP / git |
-| **知識 repo**(新,內部 git) | `ops/` op 改寫配方、`lessons/` bug 經驗、`repos/` 各 git overview | 每個 skill 開始前 grep;結束時提議新增頁面 |
+| **CodeAtlas MCP** | code graph, semantic search, past cases, docs | `find_case` for similar past bugs; `search_semantic` → `find_symbol` → `get_call_chain` / `get_callees` → `get_source` to trace errors; `get_references` for impact analysis; `find_doc` / `find_knowledge` for design docs |
+| **Confluence** | designs, SDK release notes, op support tables | via CodeAtlas `find_doc` or Confluence REST; cite the page URL |
+| **Shared folders** | models, test data, old reports | read-only mounts; cite the path |
+| **Internal GitHub** | upstream and other teams' code; the knowledge repo itself | git / GitHub MCP |
+| **Knowledge repo** (new, internal git) | `ops/` op recipes, `lessons/` bug lessons, `repos/` per-git overviews and gates | every skill greps it first and proposes new pages at the end |
 
-知識 repo 採 Karpathy LLM Wiki / llm_wiki 的格式(`purpose.md`、`schema.md`、`index.md`、`log.md`、frontmatter `sources:`),
-範本在 `knowledge-template/`。**公司資料只放內部 git,不放在這個 loop repo。**
+The knowledge repo follows the Karpathy LLM-Wiki / llm_wiki layout (`purpose.md`, `schema.md`, `index.md`,
+`log.md`, frontmatter with `sources:`); the template is in `knowledge-template/`. TencentDB Memory Hub is not adopted:
+CodeAtlas already covers the code graph, and a file-based knowledge repo is enough for distilled lessons until
+multi-user access control is needed.
 
-TencentDB Memory Hub 先不導入:CodeAtlas 已經涵蓋 CodeGraph,剩下的「經驗萃取」用檔案型知識 repo 就夠;等多人共用、需要權限控管時再評估。
+---
 
-## 實機存取(device skill)
+## Devices
 
-- 裝置清單:`devices.yml`(SoC、Hexagon arch、adb serial 或 ssh host、scratch 目錄)。
-- 每台裝置用 `flock` 上鎖,同一時間只有一個 agent 操作。
-- 允許:在 `scratch/<KEY>/` push / 執行 / 讀 log;需要人同意:reboot、remount、改 `/vendor` `/dsp` 下的 library;禁止:刷機、wipe。
-- 每次執行留下 `device-runs/<時間>-<slug>/`(指令、fingerprint、stdout、logcat、dmesg、結論),可重跑。
+- Inventory in `devices.yml`: `os` (android / windows), transport (adb serial / ssh host), SoC, Hexagon arch,
+  build or driver version, scratch dir.
+- One `flock` lock per device; one agent at a time.
+- **Android:** `adb push`/`shell`/`pull`, `LD_LIBRARY_PATH` / `ADSP_LIBRARY_PATH` into scratch, `logcat` + `dmesg`.
+- **Windows on Snapdragon:** OpenSSH + PowerShell, `scp` into `C:/loop/<KEY>`, process-scoped `PATH`, `Get-WinEvent`
+  for the run's time window, WER dumps; doctor records OS build and NPU driver version.
+- Allowed / needs-OK / never lists per OS (e.g. driver install and reboot need OK; flashing, `bcdedit` never).
+- Each run leaves `device-runs/<time>-<slug>/` with commands, doctor output, stdout, logs, and a result note.
+
+---
 
 ## Orchestrator
 
-參考 autopilot 的迴圈結構,但先做最小版:
+Smallest useful version of autopilot's loop:
 
 ```
 loop:
-  for route in config.routes:                       # 依優先順序
-    issues = jira.search(route.jql)                 # 例: labels = agent:analyze AND assignee = currentUser()
-    for issue in issues not running:
+  for route in config.routes:                       # priority order
+    for issue in jira.search(route.jql) not running:
       if route.needs_slot and no free slot: continue
-      run_skill(route.skill, issue, slot)           # Claude Agent SDK / `claude -p`,帶 timeout
-  monitor_gerrit()                                  # in-review 的 change:Verified -1 / 新 comment / conflict → fixer
+      if route.needs_device and no matching free device: continue
+      run_skill(route.skill, issue, slot, runner)   # `claude -p` or `codex exec`, with timeout
+  monitor_gerrit()                                  # in-review changes: Verified -1 / new comments / conflicts → fixer
   sleep(poll_interval)
 ```
 
-- 實作語言:Python(stdlib 優先,工作站 / build server 不需另裝環境;`tools/jira.py` 已是 Python)。
-- Agent 執行器可切換:`claude -p` 或 `codex exec`,skill 是同一份。
-- 從 autopilot 借:circuit breaker、retry、timeout + abort、activity log、prompt template 渲染。
+- Python, stdlib first, so it runs on the workstation or build server with nothing extra installed
+  (`tools/jira.py` already follows this).
+- The runner is switchable (`claude -p` / `codex exec`); the skills are the same files.
+- Borrowed from autopilot: circuit breaker, retry, timeout + abort, activity log, prompt templating.
 
 ---
 
-## 分階段 Roadmap
+## Roadmap
 
-| Phase | 內容 | 自動化程度 | 價值 |
+| Phase | Content | Automation | Value |
 |---|---|---|---|
-| **0** | `jira.py`、`bug-analyze` / `device` / `model-enable` / `feature-spec` skill、知識 repo 範本;**全部手動執行**(進行中) | 手動 | 立刻能用,驗證 prompt 品質 |
-| **1** | Jira 讀取 + `triage` + `bug-analyze` 自動跑(唯讀,只留言) | 唯讀自動 | 零風險驗證判斷力 |
-| **2** | `implement`:改 code、build、test、`repo upload` WIP change | 寫入自動 | 第一個「票 → change」 |
-| **3** | Gerrit monitor:Verified -1 修正、review comment 回應、rebase | 寫入自動 | 減少 review 往返 |
-| **4** | `feature-spec` 串接 Jira sub-task、`report` 產投影片、`review-prep` | 半自動(人回答問題) | 新功能全流程 |
-| **5** | `reflect` 定期改進 prompt、(可選)planning 主動開票、Memory Hub | 自我改進 | 長期累積 |
+| **0** | `jira.py`; skills `bug-analyze`, `device`, `model-enable`, `feature-spec`, `repo-onboard`; knowledge template — **all run by hand** (in progress) | manual | usable now; measures skill quality |
+| **1** | Orchestrator runs `triage` + `bug-analyze` automatically (read-only, comments only) | read-only auto | zero-risk check of agent judgment |
+| **2** | `implement`: change code, pass gates, `repo upload --wip` | write auto | first ticket → change |
+| **3** | Gerrit / Jenkins monitor: Verified -1 fixes, review responses, rebases | write auto | fewer review round-trips |
+| **4** | `feature-spec` → sub-tasks, `report` slides, `review-prep` | semi-auto (human answers) | full feature flow |
+| **5** | `reflect` improves skills; optional planning; optional Memory Hub | self-improving | long-term compounding |

@@ -12,6 +12,7 @@ for t in "${targets[@]}"; do
   esac
   mkdir -p "$dest"
   for skill in "$LOOP_HOME"/skills/*/; do
+    [ -f "$skill/SKILL.md" ] || continue
     name="$(basename "$skill")"
     ln -sfn "${skill%/}" "$dest/$name"
     echo "$t: $dest/$name -> ${skill%/}"

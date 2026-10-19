@@ -1,11 +1,13 @@
-# loop 設定檔草稿(orchestrator 用;Phase 0 手動模式只需要環境變數)。複製成 loop.yml(git-ignored)。
+# loop orchestrator config draft (Phase 0 manual mode only needs environment variables).
+# Copy to loop.yml (git-ignored).
 
 jira:
-  url: "https://jira.example.com"
-  auth: env:JIRA_TOKEN                     # Cloud 另需 env:JIRA_EMAIL;Data Center 用 PAT
-  base_jql: >-                             # 所有路由共用的範圍限制,避免碰到別人的票
+  url: "https://jira.company.example"     # company-hosted = Data Center; *.atlassian.net = Cloud
+  auth: env:JIRA_TOKEN                     # PAT (Bearer); set env:JIRA_USER for Basic auth
+  language: en                             # all Jira text in English
+  base_jql: >-                             # shared scope for every route; never touch other people's tickets
     project = NPU AND assignee = currentUser() AND statusCategory != Done
-  labels:                                  # agent 狀態用 label,不需要改 Jira workflow
+  labels:                                  # agent state lives in labels; no Jira workflow change needed
     analyze: "agent:analyze"
     needs_info: "agent:needs-info"
     fix_ready: "agent:fix-ready"
@@ -17,43 +19,39 @@ jira:
     running: "agent:running"
 
 manifest:
-  url: "ssh://gerrit.example.com/<manifest>"
+  url: "ssh://gerrit.company.example/<manifest>"
   branch: "<branch>"
-  owned_projects:                          # 只有這些 git 允許 agent 寫入(= LOOP_OWNED)
-    - path: "<path/to/git-1>"
-      build: "<增量 build 指令>"
-      test: "<host unit test 指令>"
-      device_test: "<實機測試指令,經 device skill 執行>"
+  owned_projects:                          # the only gits agents may write (= LOOP_OWNED)
+    - path: "<path/to/git-1>"              # build / test gates live in knowledge repos/<git>/overview.md
     - path: "<path/to/git-2>"
-      build: ""
-      test: ""
 
 workspace:
   root: "~/loop-work"
-  slots: 1                                 # 可寫入的完整 tree 數 = 寫入型 agent 平行數
+  slots: 1                                 # full synced trees = writable parallelism
   branch_prefix: "loop/"
 
 gerrit:
-  url: "https://gerrit.example.com"
+  url: "https://gerrit.company.example"
   auth: env:GERRIT_HTTP_PASSWORD
-  upload_flags: ["--cbr", "--wip"]         # 先 WIP,人確認後轉 ready
+  upload_flags: ["--cbr", "--wip"]         # WIP first; the engineer marks it ready
   topic_from: jira_key
-  never: ["+2", "submit", "abandon"]       # 寫死
+  never: ["+2", "submit", "abandon"]       # hard-coded
 
 jenkins:
-  url: "https://jenkins.example.com"
-  auth: env:JENKINS_TOKEN                  # 讀 Verified -1 的 console log
+  url: "https://jenkins.company.example"
+  auth: env:JENKINS_TOKEN                  # read console logs for Verified -1
 
 knowledge:
-  repo: "~/npu-knowledge"                  # 內部 git(LOOP_KNOWLEDGE)
-  mcp: ["codeatlas", "confluence"]         # agent 可用的 MCP server 名稱
-  shared_folders: ["/mnt/share/npu"]       # 唯讀
+  repo: "~/npu-knowledge"                  # internal git (LOOP_KNOWLEDGE)
+  mcp: ["codeatlas"]                       # search_semantic, find_symbol, get_callees, get_call_chain,
+                                           # get_references, get_source, find_knowledge, find_case, find_doc
+  shared_folders: ["/mnt/share/npu"]       # read-only
 
-devices: "devices.yml"
+devices: "devices.yml"                     # Android (adb) and Windows on Snapdragon (ssh)
 
 runner:
   default: claude                          # claude | codex
-  claude: "claude -p --model {model}"
+  claude: "claude -p"
   codex: "codex exec"
 
 agents:
@@ -61,13 +59,14 @@ agents:
   bug-analyze:   { timeout_min: 60, writes_code: false, needs_device: optional }
   model-enable:  { timeout_min: 120, writes_code: false, needs_device: true }
   feature-spec:  { interactive: true }
+  repo-onboard:  { interactive: true }
   implement:     { timeout_min: 120, writes_code: true, max_validate_attempts: 3 }
   fixer:         { timeout_min: 45, writes_code: true, max_attempts: 3 }
   review-prep:   { timeout_min: 20, writes_code: false }
   report:        { interactive: true }
   reflect:       { timeout_min: 15, writes_code: false }
 
-autonomy:                                  # 漸進開放;全 false = Phase 0 手動模式
+autonomy:                                  # opened step by step; all false = Phase 0 manual mode
   auto_triage: false
   auto_analyze: false
   auto_implement_after_analysis: false

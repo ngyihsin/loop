@@ -2,9 +2,10 @@
 """Minimal Jira CLI for loop agents. Stdlib only.
 
 Environment:
-  JIRA_URL      e.g. https://jira.example.com
-  JIRA_TOKEN    API token (Cloud) or Personal Access Token (Data Center)
-  JIRA_EMAIL    set for Cloud (basic auth email:token); unset for Data Center (Bearer PAT)
+  JIRA_URL      e.g. https://jira.company.com (self-hosted Data Center/Server) or https://x.atlassian.net (Cloud)
+  JIRA_TOKEN    Personal Access Token (Data Center) or API token (Cloud)
+  JIRA_USER     optional; when set, use Basic auth user:token (Cloud email, or DC username if PATs are disabled)
+                instead of Bearer PAT
 
 Every command that writes to Jira prints the request and does nothing unless --apply is given.
 """
@@ -23,14 +24,14 @@ FIELDS = "summary,description,status,labels,components,issuetype,priority,assign
 
 
 class Jira:
-    def __init__(self, url, token, email=None):
+    def __init__(self, url, token, user=None):
         self.url = url.rstrip("/")
-        if email:
-            cred = base64.b64encode(f"{email}:{token}".encode()).decode()
+        if user:
+            cred = base64.b64encode(f"{user}:{token}".encode()).decode()
             self.auth = f"Basic {cred}"
         else:
             self.auth = f"Bearer {token}"
-        self.cloud = bool(email)
+        self.cloud = urllib.parse.urlparse(self.url).hostname.endswith(".atlassian.net")
 
     def request(self, method, path, body=None, raw=False):
         url = path if path.startswith("http") else self.url + path
@@ -199,8 +200,8 @@ def main(argv=None):
     args = p.parse_args(argv)
     url, token = os.environ.get("JIRA_URL"), os.environ.get("JIRA_TOKEN")
     if not url or not token:
-        sys.exit("jira: set JIRA_URL and JIRA_TOKEN (and JIRA_EMAIL for Jira Cloud)")
-    args.fn(Jira(url, token, os.environ.get("JIRA_EMAIL")), args)
+        sys.exit("jira: set JIRA_URL and JIRA_TOKEN (and JIRA_USER for Basic auth)")
+    args.fn(Jira(url, token, os.environ.get("JIRA_USER") or os.environ.get("JIRA_EMAIL")), args)
 
 
 if __name__ == "__main__":

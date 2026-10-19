@@ -8,42 +8,61 @@
 
 ## Current Status
 
-**Phase:** Phase 0 — 第一批 skill 可手動試用
-**Progress:** 環境已確認(Gerrit + Jenkins、Jira token、工作站 / build server 上跑 Claude Code / Codex、adb / ssh 實機、CodeAtlas + Confluence)。
-完成 `tools/jira.py`(含測試)與 `bug-analyze`、`device`、`model-enable`、`feature-spec` 四個 skill,以及知識 repo 範本。
-**Next Milestone:** 用真實歷史票評估 `bug-analyze` 與 `model-enable`,再寫 `implement` skill(Gerrit WIP upload)。
-**Blockers:** 下面 Open Questions 的 1、5、6
+**Phase:** Phase 0 — skills usable by hand
+**Progress:** environment confirmed (Gerrit + Jenkins; company-hosted Jira with token access; Claude Code / Codex on
+workstation or build server; Android over adb and Windows on Snapdragon over ssh; CodeAtlas MCP tools; Jira text in
+English). Docs are in English.
+**Next Milestone:** evaluate `bug-analyze` and `model-enable` on real past tickets; then write `implement`.
+**Blockers:** none for Phase 0; per-git build/test commands will come from `repo-onboard`.
 
-> - ✅ 參考專案分析
-> - ✅ Spec / Design v2(納入第一輪回答)
-> - ✅ `tools/jira.py`:show / search / fetch(附件)/ comment / label,寫入預設 dry-run
-> - ✅ Skills:`bug-analyze`、`device`、`model-enable`、`feature-spec`(+ API/FastRPC checklist)
-> - ✅ 知識 repo 範本(ops / lessons / repos)
-> - ⬜ 評估:3–5 張已解決的 bug + 1 個 model enablement 案例
-> - ⬜ `implement` skill:owned git、`repo start loop/<KEY>`、build/test、`repo upload --wip`、topic
-> - ⬜ `report` skill(open-slide)、`review-prep` skill
-> - ⬜ Phase 1:orchestrator 自動跑 triage / bug-analyze(唯讀)
-> - ⬜ Phase 3:Gerrit / Jenkins monitor(Verified -1 修正、review comment 回應)
+> - ✅ Reference analysis
+> - ✅ Spec / Design v3 (C++/Python, Windows on Snapdragon, CodeAtlas tools)
+> - ✅ `tools/jira.py`: show / search / fetch (attachments) / comment / label; writes dry-run by default; DC/Cloud auto-detected from the URL
+> - ✅ Skills: `bug-analyze`, `device` (Android + Windows), `model-enable`, `feature-spec` (+ API/FastRPC checklist), `repo-onboard`
+> - ✅ C++/Python gates reference; knowledge repo template
+> - ⬜ Evaluation: 3–5 solved bugs across layers + 1 past model-enablement ticket
+> - ⬜ `repo-onboard` run on each owned git, overview reviewed by the engineer
+> - ⬜ `implement` skill: owned git, `repo start loop/<KEY>`, gates, `repo upload --wip`, topic
+> - ⬜ `report` (open-slide) and `review-prep` skills
+> - ⬜ Phase 1 orchestrator: automatic `triage` / `bug-analyze` (read-only)
+> - ⬜ Phase 3 Gerrit / Jenkins monitor
 
 ---
 
+## Decisions
+
+| Decision | Why |
+|---|---|
+| Build/test commands come from `repo-onboard` (Jenkinsfile first), reviewed by the engineer | the engineer cannot list them now; CI is the authoritative definition anyway |
+| `jira.py` detects Cloud only for `*.atlassian.net`; default is Data Center with a Bearer PAT | Jira is on a company URL, which means Data Center/Server |
+| Windows devices driven via OpenSSH + PowerShell, logs via `Get-WinEvent` and framework log files | no logcat/dmesg on Windows |
+| All Jira text in English; all repo docs in English | team convention |
+| Repo stays generic on external GitHub for now; company data git-ignored | moves to internal GitHub later |
+
 ## Open Questions
 
-1. **你負責的 2–3 個 git 是哪幾個?** 請給 repo 路徑,以及各自的增量 build 指令、host 端 unit test 指令、實機測試指令。這些會寫進 `knowledge/repos/<git>/overview.md` 和 `LOOP_OWNED`。
-2. **Jira 是 Cloud 還是 Data Center?** `jira.py` 兩種都支援,差在認證:Cloud 要設 `JIRA_EMAIL`,DC 用 PAT。
-3. **CodeAtlas MCP 在 Codex 也能用嗎?** Confluence 是走 Atlassian MCP 還是 REST?skill 目前只寫「用 CodeAtlas」,如果你給我 tool 名稱,我可以寫得更精準。
-4. **實機種類:** adb 的是手機平台,ssh 的是車用 / IoT Linux 平台嗎?主要的 SoC / Hexagon arch 有哪些?
-5. **評估案例:** 請挑 3–5 張已解決的 bug(最好分屬不同層:converter、finalize、FastRPC、精度、效能)和 1 個做過的 model enablement 票。用 skill 跑一次,再和實際修法比對。
-6. **這個 repo 在 GitHub(ngyihsin/loop)上。** 我把它設計成只放通用框架,公司資料(dossier、devices.yml、知識內容)都 git-ignore 或放內部 repo。這樣可以嗎?還是整個 loop 應該搬到內部 GitHub?
-7. **Jira 留言語言:** 英文還是中文?
+1. **Evaluation tickets** — when ready, share 3–5 solved bugs (ideally different layers: converter, graph finalize,
+   FastRPC, accuracy, performance, Windows-only) and one past model-enablement ticket.
+2. **CodeAtlas in Codex** — is the CodeAtlas MCP server configured for Codex too, or only Claude Code? What do
+   `find_case` results contain (Jira tickets? an internal case DB?) — this decides whether `triage` can rely on it
+   for duplicate detection.
+3. **Windows devices** — does the OpenSSH default shell on the laptops run PowerShell or cmd? Is there a standard
+   place where the NPU frameworks write their log files on Windows?
+4. **Report audience** — who usually sees the slides (managers, cross-team, customers), and is there a company
+   template to turn into an open-slide theme?
 
 ## Next Actions
 
-1. 在工作站:`scripts/install-skills.sh`,設好環境變數,`python3 tools/jira.py show <KEY>` 確認連線。
-2. 把 `knowledge-template/` 複製成內部 git repo,先讓 agent 為每個負責的 git 起草 `repos/<git>/overview.md`,你再修改。
-3. 用 Open Question 5 的案例跑 `/bug-analyze`、`/model-enable`,把結果和缺點貼回來,我依此調整 skill。
+1. On the workstation: `scripts/install-skills.sh`, set the environment variables, `python3 tools/jira.py show <KEY>`.
+2. Copy `knowledge-template/` into a new internal git repo; run `/repo-onboard <git>` for each owned git and correct
+   the generated `overview.md`.
+3. Run `/bug-analyze` and `/model-enable` on the evaluation tickets; report what was wrong or slow so the skills can
+   be tuned.
 
 ## Session Logs
 
-- **Session 1(2026-10-19):** 閱讀 6 個參考專案;起草 SPEC / DESIGN / references / 設定檔。
-- **Session 2(2026-10-19):** 納入環境回答;新增 `tools/jira.py`(5 個測試通過)、4 個 skill、知識 repo 範本、裝置清單範本、安裝腳本;更新 SPEC / DESIGN。
+- **Session 1 (2026-10-19):** read the six reference projects; drafted SPEC / DESIGN / references / config.
+- **Session 2 (2026-10-19):** folded in environment answers; added `tools/jira.py` with tests, four skills, the
+  knowledge template, device inventory, install script.
+- **Session 3 (2026-10-19):** C++/Python gates and `repo-onboard`; Windows on Snapdragon support in `device`;
+  CodeAtlas tool names in all skills; Jira auth by URL (`JIRA_USER`); all docs translated to English.

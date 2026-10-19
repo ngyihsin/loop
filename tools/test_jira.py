@@ -66,6 +66,7 @@ class JiraTest(unittest.TestCase):
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         os.environ["JIRA_URL"] = f"http://127.0.0.1:{cls.server.server_port}"
         os.environ["JIRA_TOKEN"] = "t"
+        os.environ.pop("JIRA_USER", None)
         os.environ.pop("JIRA_EMAIL", None)
 
     @classmethod
@@ -103,7 +104,13 @@ class JiraTest(unittest.TestCase):
         self.run_cli("label", "NPU-1", "--add", "agent:fix-ready", "--apply")
         self.assertEqual(Fake.calls, [("PUT", "/rest/api/2/issue/NPU-1", {"update": {"labels": [{"add": "agent:fix-ready"}]}})])
 
-    def test_search_uses_dc_endpoint_without_email(self):
+    def test_basic_auth_and_cloud_detection(self):
+        j = jira.Jira("https://acme.atlassian.net", "t", "me@acme.com")
+        self.assertTrue(j.auth.startswith("Basic "))
+        self.assertTrue(j.cloud)
+        self.assertFalse(jira.Jira("https://jira.acme.com", "t").cloud)
+
+    def test_search_uses_dc_endpoint_for_self_hosted(self):
         out = self.run_cli("search", "labels = agent:analyze")
         self.assertIn("NPU-1\tOpen", out)
         self.assertTrue(Fake.calls[0][1].startswith("/rest/api/2/search?"))

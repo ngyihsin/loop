@@ -15,8 +15,10 @@ when later stages learn the spec was wrong, they update the spec first.
 ## Phase 1 — SPEC.md
 
 1. Fetch the ticket; read linked tickets, the Confluence pages it cites, and related knowledge entries.
-2. Research before asking: use CodeAtlas to find the existing API surface, callers, and the closest precedent
-   (the last time a similar API or RPC was added — its change, its review comments).
+2. Research before asking, with CodeAtlas: `find_doc` / `find_knowledge` for existing designs; `find_symbol` and
+   `get_references` for the current API surface and its callers; `get_call_chain` from the public API down to the
+   RPC boundary; `search_semantic` for the closest precedent (the last time a similar API or RPC was added — its
+   change, its review comments).
 3. Ask in small rounds (2–4 questions per round), each with your recommended answer. Cover: problem and user
    (who calls this API?), goals / non-goals, functional and non-functional requirements (latency, memory,
    thread-safety, power), compatibility constraints, success criteria that a test can check, open questions.
@@ -30,11 +32,12 @@ skipping one.
 
 IMPLEMENTATION-GUIDE.md: ordered steps, each one a change that builds, has its own test, and can be reviewed
 alone in Gerrit (e.g. 1. IDL + generated stubs, 2. DSP-side skel implementation + unit test, 3. host API + test,
-4. framework integration, 5. docs/sample). Name the git, files, build and test command for each step.
+4. framework integration (C++ / Python binding), 5. docs/sample). Name the git, files, platforms (Android,
+Windows on Snapdragon), and the build and test commands for each step (from `repos/<git>/overview.md`).
 
 ## Phase 3 — Decompose into Jira
 
-Propose one sub-task per IMPLEMENTATION-GUIDE step (summary, description linking the dossier section,
+Propose one sub-task per IMPLEMENTATION-GUIDE step, written in English (summary, description linking the dossier section,
 acceptance = that step's test). Print the list and wait for approval; creating sub-tasks is a Jira write.
 After approval each sub-task gets `agent:ready` and enters the `implement` stage.
 
