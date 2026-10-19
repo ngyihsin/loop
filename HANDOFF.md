@@ -8,55 +8,42 @@
 
 ## Current Status
 
-**Phase:** Phase 0 — Spec drafted,等待 Open Questions 的回答
-**Progress:** 讀完 6 個參考專案,完成 SPEC / DESIGN 草稿、設定檔草稿
-**Next Milestone:** Spec finalized → 開始 Phase 0(knowledge wiki + 手動 skill)
-**Blockers:** 下面的 Open Questions
+**Phase:** Phase 0 — 第一批 skill 可手動試用
+**Progress:** 環境已確認(Gerrit + Jenkins、Jira token、工作站 / build server 上跑 Claude Code / Codex、adb / ssh 實機、CodeAtlas + Confluence)。
+完成 `tools/jira.py`(含測試)與 `bug-analyze`、`device`、`model-enable`、`feature-spec` 四個 skill,以及知識 repo 範本。
+**Next Milestone:** 用真實歷史票評估 `bug-analyze` 與 `model-enable`,再寫 `implement` skill(Gerrit WIP upload)。
+**Blockers:** 下面 Open Questions 的 1、5、6
 
 > - ✅ 參考專案分析
-> - ✅ Spec drafted
-> - ⬜ Spec finalized(Open Questions 解決)
-> - ⬜ Phase 0:knowledge wiki + `bug-analyze` / `spec-interview` / `report` skill(手動)
-> - ⬜ Phase 1:Jira 介接 + 自動 triage / analyze(唯讀)
-> - ⬜ Phase 2:implement → Gerrit WIP change
-> - ⬜ Phase 3:Gerrit monitor(fixer / review 回應)
-> - ⬜ Phase 4:spec → sub-task、report、review-prep 串接
-> - ⬜ Phase 5:reflect、Memory Hub
+> - ✅ Spec / Design v2(納入第一輪回答)
+> - ✅ `tools/jira.py`:show / search / fetch(附件)/ comment / label,寫入預設 dry-run
+> - ✅ Skills:`bug-analyze`、`device`、`model-enable`、`feature-spec`(+ API/FastRPC checklist)
+> - ✅ 知識 repo 範本(ops / lessons / repos)
+> - ⬜ 評估:3–5 張已解決的 bug + 1 個 model enablement 案例
+> - ⬜ `implement` skill:owned git、`repo start loop/<KEY>`、build/test、`repo upload --wip`、topic
+> - ⬜ `report` skill(open-slide)、`review-prep` skill
+> - ⬜ Phase 1:orchestrator 自動跑 triage / bug-analyze(唯讀)
+> - ⬜ Phase 3:Gerrit / Jenkins monitor(Verified -1 修正、review comment 回應)
 
 ---
 
 ## Open Questions
 
-這些答案會直接改變設計,依重要性排序:
-
-### 環境
-
-1. **Code review 是 Gerrit 嗎?**(`repo upload`)還是 GitHub / GitLab / 其他?CI(Verified)是 Jenkins 還是別的?
-2. **Jira 是 Cloud 還是 Server/Data Center?** 能用 API token / PAT 嗎?你有權限加 label、轉狀態嗎?能不能請 admin 加新狀態(或就用 label)?
-3. **Agent 在哪裡跑?** 你的工作站 / 公司 build server / 雲端?能連到 Claude API 嗎(或要走公司 proxy / Bedrock / Vertex)?公司對「code 送到 LLM」有沒有限制?
-4. **Build 規模:** 你負責的 2–3 個 git 是哪一類(app、framework service、HAL、kernel、vendor)?單一 module 增量 build 大約多久?有沒有 host 端可以跑的 unit test(Robolectric / host gtest),還是一定要實機?
-
-### 流程
-
-5. **Bug 的「重現」主要靠什麼?** Jira 附件的 logcat / bugreport / ANR / tombstone?還是需要接實機?(決定 `bug-analyze` 的能力邊界)
-6. **你希望第一個上線的是哪一種?** 我建議先做 `bug-analyze`(唯讀、零風險、最快看出 agent 判斷力),但如果你最痛的是別的(例如 review 準備或報告),可以換順序。
-7. **Dossier 存哪?** (a) 這個 `loop` repo 裡、(b) 另一個私人 git、(c) 只放在 Jira 附件/留言。公司資料能不能放 GitHub?
-8. **Orchestrator 語言:** TypeScript(Bun,可直接參考 autopilot)還是 Python?團隊既有工具偏哪一種?
-
-### 範圍
-
-9. **知識庫:** Phase 0 用檔案型 markdown wiki 可以嗎?還是你已經想直接上 TencentDB Memory Hub(需要部署 + LLM 端點)?
-10. **報告投影片:** 有公司模板嗎(open-slide 可以做成 theme)?報告對象通常是誰(主管 / 跨部門 / 客戶),要 PPTX 嗎?
-11. 現有的 **docforge 流程有沒有你改過的地方**,或你覺得它不夠好的地方?
-
----
+1. **你負責的 2–3 個 git 是哪幾個?** 請給 repo 路徑,以及各自的增量 build 指令、host 端 unit test 指令、實機測試指令。這些會寫進 `knowledge/repos/<git>/overview.md` 和 `LOOP_OWNED`。
+2. **Jira 是 Cloud 還是 Data Center?** `jira.py` 兩種都支援,差在認證:Cloud 要設 `JIRA_EMAIL`,DC 用 PAT。
+3. **CodeAtlas MCP 在 Codex 也能用嗎?** Confluence 是走 Atlassian MCP 還是 REST?skill 目前只寫「用 CodeAtlas」,如果你給我 tool 名稱,我可以寫得更精準。
+4. **實機種類:** adb 的是手機平台,ssh 的是車用 / IoT Linux 平台嗎?主要的 SoC / Hexagon arch 有哪些?
+5. **評估案例:** 請挑 3–5 張已解決的 bug(最好分屬不同層:converter、finalize、FastRPC、精度、效能)和 1 個做過的 model enablement 票。用 skill 跑一次,再和實際修法比對。
+6. **這個 repo 在 GitHub(ngyihsin/loop)上。** 我把它設計成只放通用框架,公司資料(dossier、devices.yml、知識內容)都 git-ignore 或放內部 repo。這樣可以嗎?還是整個 loop 應該搬到內部 GitHub?
+7. **Jira 留言語言:** 英文還是中文?
 
 ## Next Actions
 
-1. 回答上面的 Open Questions → 更新 SPEC / DESIGN。
-2. 選定第一個 skill(預設 `bug-analyze`),寫進 `.claude/skills/`,拿 3–5 張已解決的歷史 bug 當評測(看 agent 找到的 root cause 跟實際修法是否一致)。
-3. 為負責的 git 各寫一份 `knowledge/repos/<git>/overview.md`(可讓 agent 先產草稿,你再修)。
+1. 在工作站:`scripts/install-skills.sh`,設好環境變數,`python3 tools/jira.py show <KEY>` 確認連線。
+2. 把 `knowledge-template/` 複製成內部 git repo,先讓 agent 為每個負責的 git 起草 `repos/<git>/overview.md`,你再修改。
+3. 用 Open Question 5 的案例跑 `/bug-analyze`、`/model-enable`,把結果和缺點貼回來,我依此調整 skill。
 
 ## Session Logs
 
-- **Session 1(2026-10-19):** 閱讀 autopilot、pstack、docforge、llm_wiki、TencentDB Agent Memory、open-slide;起草 SPEC / DESIGN / references / 設定檔。
+- **Session 1(2026-10-19):** 閱讀 6 個參考專案;起草 SPEC / DESIGN / references / 設定檔。
+- **Session 2(2026-10-19):** 納入環境回答;新增 `tools/jira.py`(5 個測試通過)、4 個 skill、知識 repo 範本、裝置清單範本、安裝腳本;更新 SPEC / DESIGN。

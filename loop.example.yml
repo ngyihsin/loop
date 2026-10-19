@@ -1,69 +1,75 @@
-# loop 設定檔草稿 — 目的是讓設計具體化,欄位會隨 Open Questions 的答案調整。
+# loop 設定檔草稿(orchestrator 用;Phase 0 手動模式只需要環境變數)。複製成 loop.yml(git-ignored)。
 
 jira:
-  url: "https://jira.example.com"          # Cloud 或 Data Center?(待確認)
-  auth: env:JIRA_TOKEN                     # PAT;不寫進設定檔
+  url: "https://jira.example.com"
+  auth: env:JIRA_TOKEN                     # Cloud 另需 env:JIRA_EMAIL;Data Center 用 PAT
   base_jql: >-                             # 所有路由共用的範圍限制,避免碰到別人的票
-    project = PROJ AND assignee = currentUser() AND statusCategory != Done
-  labels:                                  # agent 狀態用 label 表示,不需要改 Jira workflow
+    project = NPU AND assignee = currentUser() AND statusCategory != Done
+  labels:                                  # agent 狀態用 label,不需要改 Jira workflow
     analyze: "agent:analyze"
     needs_info: "agent:needs-info"
     fix_ready: "agent:fix-ready"
     ready: "agent:ready"
     spec: "agent:spec"
+    model: "agent:model"
     in_review: "agent:in-review"
     blocked: "agent:blocked"
     running: "agent:running"
-  status_sync:                             # 只做粗略同步;名稱依公司 workflow 調整
-    in_progress: "In Progress"
-    in_review: "In Review"
 
 manifest:
-  url: "ssh://gerrit.example.com/platform/manifest"
-  branch: "main"
-  groups: "default"                        # 可用 -g 縮小 sync 範圍
-  owned_projects:                          # 只有這些 git 允許 agent 寫入
-    - path: "packages/apps/Foo"
-      name: "platform/packages/apps/Foo"
-      build: "m Foo"
-      test: "atest FooUnitTests"
-      lint: ""
-    - path: "frameworks/base/services/core/java/com/android/server/bar"   # 例
-      name: "platform/frameworks/base"
-      build: "m services"
-      test: "atest BarServiceTest"
+  url: "ssh://gerrit.example.com/<manifest>"
+  branch: "<branch>"
+  owned_projects:                          # 只有這些 git 允許 agent 寫入(= LOOP_OWNED)
+    - path: "<path/to/git-1>"
+      build: "<增量 build 指令>"
+      test: "<host unit test 指令>"
+      device_test: "<實機測試指令,經 device skill 執行>"
+    - path: "<path/to/git-2>"
+      build: ""
+      test: ""
 
 workspace:
-  root: "~/loop"
-  slots: 1                                 # 可寫入的完整 tree 數量 = 寫入型 agent 平行數
-  readonly_tree: "~/loop/slots/slot-1"     # 唯讀分析可共用
-  branch_prefix: "loop/"                   # agent 只碰這個前綴的 branch
+  root: "~/loop-work"
+  slots: 1                                 # 可寫入的完整 tree 數 = 寫入型 agent 平行數
+  branch_prefix: "loop/"
 
-gerrit:                                    # 假設用 Gerrit(待確認)
+gerrit:
   url: "https://gerrit.example.com"
   auth: env:GERRIT_HTTP_PASSWORD
-  upload_flags: ["--cbr", "--wip"]         # 先以 WIP 上傳,人確認後再轉 ready
+  upload_flags: ["--cbr", "--wip"]         # 先 WIP,人確認後轉 ready
   topic_from: jira_key
-  never: ["+2", "submit"]                  # 寫死;agent 永遠不能做
+  never: ["+2", "submit", "abandon"]       # 寫死
 
-agents:                                    # 路由表:誰在什麼條件下跑
-  triage:        { model: sonnet, timeout_min: 10, writes_code: false }
-  bug-analyze:   { model: opus,   timeout_min: 45, writes_code: false }
-  implement:     { model: opus,   timeout_min: 90, writes_code: true, max_validate_attempts: 3 }
-  fixer:         { model: sonnet, timeout_min: 45, writes_code: true, max_attempts: 3 }
-  review-prep:   { model: opus,   timeout_min: 20, writes_code: false }
-  spec-interview:{ model: opus,   interactive: true }
-  report:        { model: sonnet, interactive: true }
-  reflect:       { model: sonnet, timeout_min: 15, writes_code: false }
-
-autonomy:                                  # 漸進式開放;Phase 0 全部 false = 只能手動跑 skill
-  auto_triage: false
-  auto_analyze: false
-  auto_implement_after_analysis: false     # false = 人要手動把 agent:fix-ready 加上
-  auto_fix_ci: false
-  auto_respond_review: false
+jenkins:
+  url: "https://jenkins.example.com"
+  auth: env:JENKINS_TOKEN                  # 讀 Verified -1 的 console log
 
 knowledge:
-  path: "~/loop/knowledge"                 # 檔案型 wiki(llm_wiki / Obsidian 相容)
-dossier:
-  path: "~/loop/dossier"                   # 存哪裡待確認
+  repo: "~/npu-knowledge"                  # 內部 git(LOOP_KNOWLEDGE)
+  mcp: ["codeatlas", "confluence"]         # agent 可用的 MCP server 名稱
+  shared_folders: ["/mnt/share/npu"]       # 唯讀
+
+devices: "devices.yml"
+
+runner:
+  default: claude                          # claude | codex
+  claude: "claude -p --model {model}"
+  codex: "codex exec"
+
+agents:
+  triage:        { timeout_min: 10, writes_code: false }
+  bug-analyze:   { timeout_min: 60, writes_code: false, needs_device: optional }
+  model-enable:  { timeout_min: 120, writes_code: false, needs_device: true }
+  feature-spec:  { interactive: true }
+  implement:     { timeout_min: 120, writes_code: true, max_validate_attempts: 3 }
+  fixer:         { timeout_min: 45, writes_code: true, max_attempts: 3 }
+  review-prep:   { timeout_min: 20, writes_code: false }
+  report:        { interactive: true }
+  reflect:       { timeout_min: 15, writes_code: false }
+
+autonomy:                                  # 漸進開放;全 false = Phase 0 手動模式
+  auto_triage: false
+  auto_analyze: false
+  auto_implement_after_analysis: false
+  auto_fix_ci: false
+  auto_respond_review: false

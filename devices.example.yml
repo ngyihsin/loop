@@ -1,0 +1,16 @@
+# Copy to devices.yml (git-ignored). One entry per test device the device skill may use.
+devices:
+  - id: sm8750-a
+    transport: adb            # adb | ssh
+    serial: "XXXXXXXX"        # adb serial (or host: user@ip for ssh)
+    soc: SM8750
+    hexagon_arch: v79
+    build: "<meta build id>"
+    scratch: /data/local/tmp/loop
+  - id: lemans-ssh
+    transport: ssh
+    host: "root@10.0.0.20"
+    soc: "<soc>"
+    hexagon_arch: v73
+    build: "<build id>"
+    scratch: /tmp/loop

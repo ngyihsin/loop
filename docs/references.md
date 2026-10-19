@@ -37,7 +37,7 @@ poteto(React core)的一組 Agent Skills:`poteto-mode` + 各種 playbook(bug-fix
 `AGENT-warm-up.md` 為每次 session 入口;SPEC → DESIGN → IMPLEMENTATION-GUIDE → HANDOFF + session log;「Ask, don't tell」、「Discuss first, code later」。
 
 **借用**
-- 整個流程成為 `spec-interview` skill,輸出放在 `dossier/<KEY>/`。
+- 整個流程成為 `feature-spec` skill,輸出放在 `dossier/<KEY>/`。
 - HANDOFF.md 的品質標準(「新成員讀完能不問問題就接手」)→ 每個 agent 結束時更新 dossier HANDOFF.md。
 - 本 repo 的文件也用 docforge 結構。
 
@@ -55,7 +55,7 @@ Memory Hub:Chat Memory(L0→L3 分層萃取)、Skill library(有版本、可分�
 
 **借用(概念)**:「任何能讓下一個 agent 少走冤枉路的資訊都要存」;skill 有版本與驗證規則;CodeGraph 做修改前影響分析。
 
-**延後**:需要部署三個服務 + LLM 端點,也要確認公司資安是否允許 proxy。先用檔案型 wiki,等團隊共享需求出現再評估。
+**延後**:CodeGraph 的角色已由公司的 CodeAtlas MCP 取代;經驗萃取先用檔案型知識 repo。等多人共用、需要權限控管時再評估。
 
 ## open-slide — open-slide/open-slide(報告)
 

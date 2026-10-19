@@ -1,0 +1,7 @@
+# Company data never leaves the workstation via this repo.
+dossier/
+locks/
+devices.yml
+loop.yml
+.env
+__pycache__/
