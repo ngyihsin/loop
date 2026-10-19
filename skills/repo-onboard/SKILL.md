@@ -23,9 +23,11 @@ truth**, and the engineer as the reviewer of what you found.
 
 ## 2. Read the build system
 
-- C++: `CMakeLists.txt` / `CMakePresets.json`, `Android.bp` / `Android.mk`, Bazel `BUILD`, Hexagon SDK makefiles,
-  Visual Studio / MSBuild files for Windows ARM64. Note the targets, toolchain files, and options that select
-  backend (HTP / CPU / GPU) or platform.
+- C++: `CMakeLists.txt` / `CMakePresets.json`, toolchain files, Bazel `BUILD`, Hexagon SDK makefiles, Visual
+  Studio / MSBuild files. For each target (`linux-x64`, `linux-arm64`, `windows-x64`, `windows-arm64`, Hexagon)
+  record **which build host** builds it (Linux x64 or Windows x64 — see `skills/references/build-hosts.md`), the
+  toolchain and environment setup (toolchain file, sysroot, `vcvarsall.bat x64_arm64`), and options that select
+  backend (HTP / CPU / GPU).
 - Python: `pyproject.toml` / `setup.py` / `requirements*.txt`, test config (`pytest.ini`, `conftest.py`, `tox.ini`),
   lint config (`ruff.toml`, `.flake8`, `mypy.ini`), extension builds (pybind11 / nanobind).
 - Style: `.clang-format`, `.clang-tidy`, `.editorconfig`, pre-commit config.
@@ -38,8 +40,9 @@ which other gits it depends on. Record the top-level directories and what each i
 
 ## 4. Prove the commands
 
-Run, on the workstation or build server, the cheapest command for each gate — the incremental build of one
-target, one unit test file, the formatter in check mode. Record wall-clock time. A command you did not run is
+Run the cheapest command for each gate on the build host that owns it — the incremental build of one target per
+host, one unit test file on the x64 native build, the formatter in check mode. The Windows host is driven over ssh
+as described in `build-hosts.md`. Record wall-clock time. A command you did not run is
 written as `unverified:` in the page. Do not run anything that needs a device here; list it for the `device`
 skill instead.
 

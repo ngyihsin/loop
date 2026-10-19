@@ -15,11 +15,11 @@ reviewed_by: unreviewed
 |---|---|---|
 
 ## Build
-| Target (host / Android aarch64 / Windows ARM64 / Hexagon) | Command | Time | Prerequisites | Verified? |
-|---|---|---|---|---|
+| Target (linux-x64 / linux-arm64 / windows-x64 / windows-arm64 / hexagon) | Build host | Env setup (toolchain file, vcvarsall, SDK) | Command | Time | Verified? |
+|---|---|---|---|---|---|
 
 ## Test
-| Kind (C++ unit / Python / on-device) | Command | Time | Needs device? | Verified? |
+| Kind (C++ unit / Python / on-device) | Runs on (x64 host / qemu / device) | Command | Time | Verified? |
 |---|---|---|---|---|
 
 ## Gates (what `implement` must pass, cheapest first)

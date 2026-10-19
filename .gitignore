@@ -5,3 +5,4 @@ devices.yml
 loop.yml
 .env
 __pycache__/
+build-hosts.yml

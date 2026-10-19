@@ -10,8 +10,9 @@ reports) from "the engineer does it" to "an agent does it, the engineer reviews"
   mostly **C++ and Python**
 - **Tracking:** Jira · **Review:** Gerrit · **CI:** Jenkins
 - **Source:** Android `repo` manifest with many gits; agents write only in the 2–3 owned gits
-- **Agents:** Claude Code or Codex on the workstation / build server
-- **Devices:** Android over adb, Windows on Snapdragon (arm64) over ssh
+- **Agents:** Claude Code or Codex on the workstation / Linux build server
+- **Build hosts:** Linux x64 (→ cross arm64 Linux) and Windows x64 (→ cross arm64 Windows)
+- **Devices:** arm64 Linux / Android over adb or ssh, Windows on Snapdragon (arm64) over ssh
 - **Knowledge:** CodeAtlas MCP, Confluence, shared folders, internal GitHub, plus an internal knowledge repo
 
 ## Quick start (Phase 0, manual mode)
@@ -20,6 +21,7 @@ reports) from "the engineer does it" to "an agent does it, the engineer reviews"
 git clone <this repo> ~/loop && cd ~/loop
 scripts/install-skills.sh            # link skills/ into ~/.claude/skills and ~/.codex/skills
 cp devices.example.yml devices.yml   # fill in your test devices
+cp build-hosts.example.yml build-hosts.yml   # Linux x64 and Windows x64 build servers
 export LOOP_HOME=~/loop LOOP_KNOWLEDGE=~/npu-knowledge LOOP_OWNED="<git path> <git path>"
 export JIRA_URL=https://<your company jira> JIRA_TOKEN=<personal access token>
 python3 tools/jira.py show NPU-123   # check the Jira connection
@@ -45,7 +47,8 @@ token.)
 | [repo-onboard](skills/repo-onboard/SKILL.md) | derive an owned git's build / test gates from Jenkins and build files into `repos/<git>/overview.md` | no |
 
 Shared rules: [skills/CONVENTIONS.md](skills/CONVENTIONS.md) · C++/Python gates:
-[skills/references/cpp-python-gates.md](skills/references/cpp-python-gates.md) · Tool: [tools/jira.py](tools/jira.py)
+[skills/references/cpp-python-gates.md](skills/references/cpp-python-gates.md) · Build hosts:
+[skills/references/build-hosts.md](skills/references/build-hosts.md) · Tool: [tools/jira.py](tools/jira.py)
 (`python3 -m unittest tools/test_jira.py`) · Knowledge repo template: [knowledge-template/](knowledge-template/)
 (copy into an internal git, not into this repo).
 

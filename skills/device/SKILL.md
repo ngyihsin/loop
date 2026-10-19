@@ -72,7 +72,8 @@ ssh <host> 'powershell -NoProfile -Command "Get-CimInstance Win32_PnPSignedDrive
 
 Make one folder per run: `$LOOP_DOSSIER/<KEY>/device-runs/<YYYYMMDD-HHMMSS>-<slug>/`, containing:
 
-- `device.txt` — device id, doctor output, SDK / libraries used (with hashes of copied files)
+- `device.txt` — device id, doctor output, SDK / libraries used, and artifact provenance: build host, toolchain,
+  base revision + patch sha256, sha256 of every copied binary (see `skills/references/build-hosts.md`)
 - `cmd.sh` — the exact commands, runnable again
 - `stdout.txt` plus the platform logs (`logcat.txt`, `dmesg.txt` / `events.txt`, framework log files)
 - `result.md` — expected, observed, reproduces yes/no, run N of M

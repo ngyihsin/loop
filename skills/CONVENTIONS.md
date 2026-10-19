@@ -60,7 +60,9 @@ function → `get_call_chain` from the public API the user called → `get_sourc
 Any stage that changes code must pass, in the owned git, the gates listed in
 `$LOOP_KNOWLEDGE/repos/<git>/overview.md` (written by the `repo-onboard` skill from the git's Jenkinsfile and
 build files). If that page does not exist yet, run `repo-onboard` first. Never invent a build command.
-`references/cpp-python-gates.md` (next to this file) lists what to check for each language.
+`references/cpp-python-gates.md` (next to this file) lists what to check for each language, and
+`references/build-hosts.md` explains the two build hosts (Linux x64 → linux-x64 / linux-arm64, Windows x64 →
+windows-x64 / windows-arm64), how to drive the Windows host over ssh, and how artifacts reach devices.
 
 ## Dossier layout
 

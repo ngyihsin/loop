@@ -31,6 +31,8 @@ working in isolated checkouts" works. It assumes, however:
 - **Tooling (confirmed):** Gerrit for review, Jenkins for CI (Verified), Jira on a company-hosted URL with API
   token access to labels and comments. Agents run on the engineer's workstation or build server; Claude Code and
   Codex are both approved.
+- **Build servers:** a **Linux x64** and a **Windows x64** build host; each cross-compiles for arm64
+  (Linux x64 → arm64 Linux, Windows x64 → arm64 Windows).
 - **Devices:** reproduction needs real hardware — Android devices over **adb**, and **Windows on Snapdragon (arm64)
   laptops over ssh**.
 - **Existing knowledge:** the **CodeAtlas MCP server** (`search_semantic`, `find_symbol`, `get_callees`,
@@ -100,8 +102,10 @@ working in isolated checkouts" works. It assumes, however:
 
 ## Constraints
 
-- Builds are slow and multi-target (host, Android aarch64, Windows ARM64, Hexagon). Parallelism is bounded by the
-  build machine; incremental builds of one target are the default gate.
+- Builds are slow and multi-target: `linux-x64` / `linux-arm64` on the Linux x64 host, `windows-x64` /
+  `windows-arm64` on the Windows x64 host, plus Hexagon DSP code. arm64 output cannot run on the build hosts, so
+  arm64 behavior is only proven on devices. Parallelism is bounded by the build hosts; incremental builds of one
+  target are the default gate.
 - The Jira workflow is company-managed, so agent state lives in **labels**, not new statuses.
 - Per-git build and test commands are not documented yet; `repo-onboard` derives them from Jenkins, and the
   engineer reviews them.

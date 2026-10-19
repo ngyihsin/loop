@@ -10,14 +10,15 @@ list says what those commands must cover and what to look for when reading a dif
       do not need special hardware.
 
 ## C++
-- [ ] Builds for **every target the change reaches**, not only the host. Typical targets in this stack: Linux
-      x86_64 host tools, Android aarch64 (NDK), Windows ARM64 (MSVC or clang-cl), Hexagon DSP (Hexagon SDK
-      toolchain). A change under a shared header usually reaches all of them.
+- [ ] Builds for **every target the change reaches**, not only the host. Targets in this stack: `linux-x64` and
+      `linux-arm64` (cross) on the Linux x64 build host, `windows-x64` and `windows-arm64` (cross) on the Windows
+      x64 build host, Hexagon DSP where the git has DSP code. A change under a shared header usually reaches all of
+      them. Which host builds what, and how: `build-hosts.md`.
 - [ ] Compiler warnings: no new warnings at the git's warning level (`-Werror` often only in CI).
 - [ ] `clang-format` with the git's `.clang-format`, limited to changed lines (`git clang-format`).
 - [ ] `clang-tidy` if the git has a config.
-- [ ] Unit tests (gtest / catch2 / ctest — whatever the git uses) on host; on-device tests via the `device` skill
-      when the code only runs on target.
+- [ ] Unit tests (gtest / catch2 / ctest — whatever the git uses) on the x64 native build; arm64 binaries run on
+      a device via the `device` skill (cross-compiled tests cannot run on the build host).
 - [ ] Sanitizers (ASan / UBSan) on host tests if the git supports a sanitizer build — the cheapest way to catch
       buffer-size and lifetime bugs before the device does.
 - [ ] ABI: exported symbols and public headers unchanged unless the ticket asks for it (compare `nm -D` /

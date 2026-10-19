@@ -126,7 +126,31 @@ autopilot creates a git worktree per issue; a full Android-manifest tree is too 
 ### C++ / Python build and test gates
 
 The stack is C++ (runtime, EP op builders, DSP code, FastRPC) and Python (converters, quantizers, ExecuTorch export
-and passes, tests). Builds are multi-target: host, Android aarch64, **Windows ARM64**, Hexagon DSP.
+and passes, tests).
+
+### Build hosts
+
+```
+                 agent (Linux workstation / Linux build host)
+                    │ local                         │ ssh + PowerShell, change sent as a patch
+                    ▼                               ▼
+     Linux x64 build host                    Windows x64 build host
+       linux-x64   (native: unit tests)        windows-x64   (native: unit tests)
+       linux-arm64 (cross)                     windows-arm64 (cross: vcvarsall x64_arm64 / clang-cl)
+       hexagon     (Hexagon SDK)
+                    │ artifacts + sha256            │
+                    ▼                               ▼
+            arm64 Linux devices (adb / ssh)   Windows on Snapdragon devices (ssh)
+```
+
+- Fast gates (format, lint, Python tests, C++ unit tests) run on the x64 native build of the host.
+- arm64 targets are cross-built on their host; they can only be executed on a device (qemu user mode for
+  `linux-arm64` unit tests is optional and never counts as NPU evidence).
+- A change in shared code is built on **both** hosts before upload.
+- The Windows host keeps its own checkout at the same base revision; the change travels as a patch with a recorded
+  hash, so the artifact on the device is traceable to an exact source state.
+- Details and pitfalls (LLP64, symbol export, paths, line endings): `skills/references/build-hosts.md`; hosts are
+  listed in `build-hosts.yml`.
 
 - Gates are **per git**, discovered by `repo-onboard` from the Jenkinsfile and build files, verified by running
   them, and stored in `knowledge/repos/<git>/overview.md`. Agents never invent build commands.
