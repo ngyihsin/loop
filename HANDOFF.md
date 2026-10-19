@@ -60,6 +60,9 @@ English). Docs are in English.
 
 ## Next Actions
 
+0. Move to internal git: clone this branch (`git clone -b claude/agent-dev-workflow-jira-6rad9o <url> loop`), create
+   the internal repo, `git remote add internal <internal url>` and `git push internal HEAD:main`. Continue
+   development there with Codex (it reads `AGENTS.md`).
 1. On the workstation: `scripts/install-skills.sh`, set the environment variables, `python3 tools/jira.py show <KEY>`.
 2. Copy `knowledge-template/` into a new internal git repo; run `/repo-onboard <git>` for each owned git and correct
    the generated `overview.md`.
@@ -75,3 +78,5 @@ English). Docs are in English.
   CodeAtlas tool names in all skills; Jira auth by URL (`JIRA_USER`); all docs translated to English.
 - **Session 4 (2026-10-19):** build hosts — Linux x64 and Windows x64 with arm64 cross builds; `build-hosts.md`,
   `build-hosts.example.yml`; gates, repo-onboard, device provenance, and DESIGN updated.
+- **Session 5 (2026-10-19):** prepared the hand-over to internal development with Codex: `AGENTS.md` (repo dev
+  rules), `CLAUDE.md` pointer, Codex setup notes in README.

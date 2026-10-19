@@ -31,6 +31,19 @@ Then, inside the synced tree, open Claude Code or Codex and run `/repo-onboard <
 followed by `/bug-analyze NPU-123`, `/model-enable NPU-456`, or `/feature-spec NPU-789`.
 Jira writes are dry-run until you add `--apply`.
 
+**Codex setup:** `scripts/install-skills.sh codex` links the skills into `${CODEX_HOME:-~/.codex}/skills`
+(check your Codex version's skills folder if they don't show up). Register the CodeAtlas MCP server in
+`~/.codex/config.toml` with the same command or URL you use for Claude Code, for example:
+
+```toml
+[mcp_servers.codeatlas]
+command = "<codeatlas MCP launch command>"
+args = []
+```
+
+Then ask Codex to use a skill by name, e.g. "use the bug-analyze skill on NPU-123".
+Developing loop itself: start from [AGENTS.md](AGENTS.md).
+
 **Jira auth:** a company-hosted Jira URL means Jira Data Center/Server. Create a Personal Access Token under your
 Jira profile → Personal Access Tokens and set `JIRA_TOKEN`. If your Jira has PATs disabled, also set
 `JIRA_USER=<username>` to use Basic auth. (Jira Cloud — `*.atlassian.net` — uses `JIRA_USER=<email>` plus an API
