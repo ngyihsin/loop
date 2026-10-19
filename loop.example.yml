@@ -1,0 +1,69 @@
+# loop 設定檔草稿 — 目的是讓設計具體化,欄位會隨 Open Questions 的答案調整。
+
+jira:
+  url: "https://jira.example.com"          # Cloud 或 Data Center?(待確認)
+  auth: env:JIRA_TOKEN                     # PAT;不寫進設定檔
+  base_jql: >-                             # 所有路由共用的範圍限制,避免碰到別人的票
+    project = PROJ AND assignee = currentUser() AND statusCategory != Done
+  labels:                                  # agent 狀態用 label 表示,不需要改 Jira workflow
+    analyze: "agent:analyze"
+    needs_info: "agent:needs-info"
+    fix_ready: "agent:fix-ready"
+    ready: "agent:ready"
+    spec: "agent:spec"
+    in_review: "agent:in-review"
+    blocked: "agent:blocked"
+    running: "agent:running"
+  status_sync:                             # 只做粗略同步;名稱依公司 workflow 調整
+    in_progress: "In Progress"
+    in_review: "In Review"
+
+manifest:
+  url: "ssh://gerrit.example.com/platform/manifest"
+  branch: "main"
+  groups: "default"                        # 可用 -g 縮小 sync 範圍
+  owned_projects:                          # 只有這些 git 允許 agent 寫入
+    - path: "packages/apps/Foo"
+      name: "platform/packages/apps/Foo"
+      build: "m Foo"
+      test: "atest FooUnitTests"
+      lint: ""
+    - path: "frameworks/base/services/core/java/com/android/server/bar"   # 例
+      name: "platform/frameworks/base"
+      build: "m services"
+      test: "atest BarServiceTest"
+
+workspace:
+  root: "~/loop"
+  slots: 1                                 # 可寫入的完整 tree 數量 = 寫入型 agent 平行數
+  readonly_tree: "~/loop/slots/slot-1"     # 唯讀分析可共用
+  branch_prefix: "loop/"                   # agent 只碰這個前綴的 branch
+
+gerrit:                                    # 假設用 Gerrit(待確認)
+  url: "https://gerrit.example.com"
+  auth: env:GERRIT_HTTP_PASSWORD
+  upload_flags: ["--cbr", "--wip"]         # 先以 WIP 上傳,人確認後再轉 ready
+  topic_from: jira_key
+  never: ["+2", "submit"]                  # 寫死;agent 永遠不能做
+
+agents:                                    # 路由表:誰在什麼條件下跑
+  triage:        { model: sonnet, timeout_min: 10, writes_code: false }
+  bug-analyze:   { model: opus,   timeout_min: 45, writes_code: false }
+  implement:     { model: opus,   timeout_min: 90, writes_code: true, max_validate_attempts: 3 }
+  fixer:         { model: sonnet, timeout_min: 45, writes_code: true, max_attempts: 3 }
+  review-prep:   { model: opus,   timeout_min: 20, writes_code: false }
+  spec-interview:{ model: opus,   interactive: true }
+  report:        { model: sonnet, interactive: true }
+  reflect:       { model: sonnet, timeout_min: 15, writes_code: false }
+
+autonomy:                                  # 漸進式開放;Phase 0 全部 false = 只能手動跑 skill
+  auto_triage: false
+  auto_analyze: false
+  auto_implement_after_analysis: false     # false = 人要手動把 agent:fix-ready 加上
+  auto_fix_ci: false
+  auto_respond_review: false
+
+knowledge:
+  path: "~/loop/knowledge"                 # 檔案型 wiki(llm_wiki / Obsidian 相容)
+dossier:
+  path: "~/loop/dossier"                   # 存哪裡待確認
