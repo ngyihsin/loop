@@ -18,7 +18,7 @@ This file is for agents (Codex, Claude Code) that **develop loop**. The skills i
 | `skills/CONVENTIONS.md`, `skills/references/` | rules and checklists shared by all skills |
 | `tools/` | deterministic helpers the skills call (`jira.py`, `lock.py`, `device.py`) with their tests |
 | `knowledge-template/` | template for the internal knowledge repo (not the knowledge itself) |
-| `docs/` | SPEC, DESIGN, references (docforge structure) |
+| `docs/` | SPEC, DESIGN, references (docforge structure), PROMPTS (copy-paste prompts for the engineer) |
 | `*.example.toml` | config templates; the real `devices.toml`, `build-hosts.toml`, `loop.toml` are git-ignored |
 
 ## Rules

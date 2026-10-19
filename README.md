@@ -85,6 +85,7 @@ Shared rules: [skills/CONVENTIONS.md](skills/CONVENTIONS.md) · C++/Python gates
 | [docs/SPEC.md](docs/SPEC.md) | what, why, non-goals, success criteria |
 | [docs/DESIGN.md](docs/DESIGN.md) | architecture, agents, Jira state machine, workspace, gates, knowledge, devices |
 | [docs/references.md](docs/references.md) | what we borrow from the six reference projects |
+| [docs/PROMPTS.md](docs/PROMPTS.md) | copy-paste prompts for Codex: first session, setup check, running skills, developing loop |
 | [loop.example.toml](loop.example.toml) | orchestrator config draft |
 | [HANDOFF.md](HANDOFF.md) | status, open questions, next actions |
 

@@ -86,3 +86,4 @@ English). Docs are in English.
 - **Session 6 (2026-10-19):** Windows-first development: `tools/lock.py`, `tools/device.py` (adb / ssh-Windows via
   PowerShell `-EncodedCommand` / ssh-Linux / local), `scripts/install_skills.py` (symlink or junction), TOML
   inventories, `.gitattributes`, Windows-safe Jira attachment names; device skill and build-hosts reference rewritten.
+- **Session 7 (2026-10-19):** `docs/PROMPTS.md` with copy-paste prompts for Codex.
