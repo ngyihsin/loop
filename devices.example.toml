@@ -1,0 +1,31 @@
+# Copy to devices.toml (git-ignored). One [[device]] per test device that tools/device.py may use.
+
+[[device]]
+id = "wos-01"
+os = "windows"              # Windows on Snapdragon (arm64), OpenSSH server enabled
+transport = "ssh"
+host = "user@10.0.0.20"     # key-based auth; no passwords here
+soc = "<Snapdragon model>"
+hexagon_arch = "<arch>"
+build = "<Windows build / NPU driver version>"
+scratch = "C:/loop"
+
+[[device]]
+id = "arm64-linux-01"
+os = "linux"                # Qualcomm Linux board; use os = "android" for Android
+transport = "ssh"           # or "adb" with serial = "..."
+host = "root@10.0.0.30"
+soc = "<SoC>"
+hexagon_arch = "<arch>"
+build = "<image build id>"
+scratch = "/tmp/loop"
+
+[[device]]
+id = "android-01"
+os = "android"
+transport = "adb"
+serial = "XXXXXXXX"
+soc = "<SoC>"
+hexagon_arch = "<arch>"
+build = "<build fingerprint>"
+scratch = "/data/local/tmp/loop"

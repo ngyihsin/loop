@@ -1,8 +1,8 @@
 # Company data never leaves the workstation via this repo.
 dossier/
 locks/
-devices.yml
-loop.yml
+devices.toml
+loop.toml
 .env
 __pycache__/
-build-hosts.yml
+build-hosts.toml

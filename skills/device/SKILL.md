@@ -1,105 +1,91 @@
 ---
 name: device
-description: Safely run commands, copy models/binaries, and collect logs on a Qualcomm test device — Android over adb, or Windows on Snapdragon (arm64) laptops over ssh — with a per-device lock and recorded evidence. Use whenever another loop skill needs to reproduce a bug, run a model, profile, or verify a fix on target hardware.
+description: Safely run commands, copy models/binaries, and collect logs on Qualcomm test devices — Windows on Snapdragon (arm64) over ssh, arm64 Linux boards over ssh or adb, Android over adb — through tools/device.py, with a per-device lock and recorded evidence. Works from a Windows or Linux workstation. Use whenever another loop skill needs to reproduce a bug, run a model, profile, or verify a fix on target hardware.
 ---
 
 # device
 
-Every on-device action in loop goes through this skill so that (a) two agents never drive the same device,
-(b) nothing outside a scratch directory is modified, and (c) every run leaves evidence in the dossier.
+Every on-device action in loop goes through `$LOOP_HOME/tools/device.py` so that (a) two agents never drive the
+same device, (b) nothing outside `<scratch>/<KEY>/` is modified, and (c) every run leaves evidence in the dossier.
+The tool works the same from a Windows x64 or Linux x64 machine (it needs `ssh`/`scp` and/or `adb` on PATH).
 
-## Device inventory
+Commands below are written for any shell; on Windows use `python` (or `py -3`), on Linux `python3`, and
+`$env:LOOP_HOME` instead of `$LOOP_HOME` in PowerShell.
 
-Devices are listed in `$LOOP_HOME/devices.yml` (copy `devices.example.yml`). Each entry names the `os`
-(`android` or `windows`), transport (`adb` serial or `ssh` host), SoC, Hexagon arch, build, and a scratch
-directory. Pick the entry matching the ticket's SoC / arch / OS; if none matches, say so instead of silently using
-a different chip.
+## 1. Pick and lock a device
 
-## Lock
-
-Hold the lock for the whole session on that device:
-
-```bash
-mkdir -p "$LOOP_HOME/locks"
-exec 9>"$LOOP_HOME/locks/<device-id>.lock"
-flock -n 9 || { echo "device <device-id> busy"; exit 1; }
+```
+python $LOOP_HOME/tools/device.py list
+python $LOOP_HOME/tools/lock.py acquire device-<id> --owner <KEY>
 ```
 
-If it is busy, wait or pick another matching device. Never break someone else's lock.
+Pick the entry matching the ticket's OS, SoC, and Hexagon arch (`devices.toml`). If none matches, say so instead of
+silently using a different chip. If the lock is busy, wait or pick another matching device; never break a live lock
+(`--steal-expired` only takes over a lock past its TTL).
 
-## Doctor (run first, and whenever results look odd)
+## 2. Doctor
 
-Record the output in the run folder; a result from the wrong build or driver is not evidence.
-
-Android (adb):
-```bash
-adb -s <serial> get-state
-adb -s <serial> shell getprop ro.build.fingerprint
-adb -s <serial> shell getprop ro.soc.model
+```
+python $LOOP_HOME/tools/device.py doctor <id> --key <KEY>
 ```
 
-Windows on Snapdragon (ssh, OpenSSH server with PowerShell; wrap commands in `powershell -NoProfile -Command`
-if the default shell is cmd):
-```bash
-ssh <host> 'powershell -NoProfile -Command "Get-CimInstance Win32_OperatingSystem | Select Caption,Version,BuildNumber,OSArchitecture"'
-ssh <host> 'powershell -NoProfile -Command "Get-CimInstance Win32_Processor | Select Name"'
-# NPU / DSP driver versions (names vary by platform; filter on Qualcomm / Hexagon / NPU)
-ssh <host> 'powershell -NoProfile -Command "Get-CimInstance Win32_PnPSignedDriver | ? { $_.DeviceName -match ''Hexagon|NPU|Qualcomm'' } | Select DeviceName,DriverVersion,DriverDate"'
+Prints OS build, SoC, and (Windows) NPU / Hexagon driver versions. Check they match the ticket; a result from the
+wrong build or driver is not evidence. `run` repeats the doctor and stores it with every run.
+
+## 3. Copy artifacts in
+
+```
+python $LOOP_HOME/tools/device.py push <id> --key <KEY> <model.bin> <build-output-dir> ...
 ```
 
-## Allowed
+Files land in `<scratch>/<KEY>/`; the sha256 of each is recorded and copied into every later run's `device.txt`.
+Push the exact artifacts the build produced (see `skills/references/build-hosts.md` for provenance).
 
-| | Android | Windows |
-|---|---|---|
-| Scratch dir | `<scratch>/<KEY>/` e.g. `/data/local/tmp/loop/<KEY>` | `<scratch>\<KEY>\` e.g. `C:\loop\<KEY>` |
-| Copy files in/out | `adb push` / `adb pull` | `scp` (use forward slashes: `<host>:C:/loop/<KEY>/`) |
-| Library search path | `LD_LIBRARY_PATH`, `ADSP_LIBRARY_PATH` pointing into scratch | `$env:PATH` set for the one process; DLLs next to the exe in scratch |
-| Logs | `logcat -c` then `logcat -d`, `dmesg` | stdout/stderr, framework log files, `Get-WinEvent` (System / Application, filtered to the run's time window), WER crash dumps if enabled |
-| Debug settings | non-persistent `setprop`, restored afterwards | process-scoped environment variables only |
+## 4. Run
+
+```
+python $LOOP_HOME/tools/device.py run <id> --key <KEY> --slug <short-name> --repeat <N> -- <command>
+```
+
+The command runs inside `<scratch>/<KEY>/` — PowerShell on Windows devices, sh on Linux / Android. The tool writes
+`$LOOP_DOSSIER/<KEY>/device-runs/<time>-<slug>/` with `cmd.txt`, `device.txt` (doctor + artifact hashes),
+`stdout-<i>.txt`, `result.json` (exit code and duration per run), and platform logs:
+
+| OS | Logs collected |
+|---|---|
+| Windows | System + Application events since the run started (`events.txt`) |
+| Android | `logcat.txt` (cleared before the run), `dmesg.txt` |
+| Linux | `dmesg.txt`, `journal.txt` |
+
+Framework log files written into the work dir: fetch them with
+`device.py pull <id> --key <KEY> <path-in-workdir> <run-dir>`.
+
+Then write `result.md` in the run folder: expected, observed, reproduces yes/no, rate (`--repeat` > 1 for flaky
+bugs; one pass proves little). For performance: warm-up runs, iteration count, power mode, and whether a laptop was
+on AC power.
+
+Library search paths go in the command itself so they apply to that process only — PowerShell:
+`$env:PATH = "$PWD;$env:PATH"; .\qnn-net-run.exe ...`; sh: `LD_LIBRARY_PATH=$PWD ADSP_LIBRARY_PATH=$PWD ./qnn-net-run ...`.
 
 ## Needs the user's explicit OK
 
-- Android: reboot, `adb root` / `remount`, `setenforce`, persistent `setprop persist.*`, replacing anything under
-  `/vendor`, `/system`, `/odm`, `/dsp`.
-- Windows: reboot, installing / updating / removing drivers (`pnputil`), registry writes under `HKLM`, enabling
-  ETW / WPR traces system-wide, changing power plans, copying into `C:\Windows` or driver store.
+- Windows: reboot, installing / updating / removing drivers (`pnputil`), registry writes under `HKLM`, system-wide
+  ETW / WPR traces, power plan changes, writing outside the scratch dir.
+- Android / Linux: reboot, `adb root` / `remount`, `setenforce`, persistent properties, replacing anything under
+  `/vendor`, `/system`, `/odm`, `/dsp`, `/usr/lib`.
 
 ## Never
 
-- Flash, wipe, factory reset, `bcdedit`, disable driver signing, or delete outside `<scratch>/<KEY>/`.
+Flash, wipe, factory reset, `bcdedit`, disable driver signing, or delete outside `<scratch>/<KEY>/`.
 
-## Run recipe
+## 5. Finish
 
-Make one folder per run: `$LOOP_DOSSIER/<KEY>/device-runs/<YYYYMMDD-HHMMSS>-<slug>/`, containing:
+When the ticket is done (not between stages — the next stage may reuse the files):
 
-- `device.txt` — device id, doctor output, SDK / libraries used, and artifact provenance: build host, toolchain,
-  base revision + patch sha256, sha256 of every copied binary (see `skills/references/build-hosts.md`)
-- `cmd.sh` — the exact commands, runnable again
-- `stdout.txt` plus the platform logs (`logcat.txt`, `dmesg.txt` / `events.txt`, framework log files)
-- `result.md` — expected, observed, reproduces yes/no, run N of M
-
-Android:
-```bash
-RUN=$LOOP_DOSSIER/<KEY>/device-runs/$(date +%Y%m%d-%H%M%S)-<slug>; mkdir -p "$RUN"
-adb -s <serial> logcat -c
-adb -s <serial> shell 'cd <scratch>/<KEY> && <command>' 2>&1 | tee "$RUN/stdout.txt"
-adb -s <serial> logcat -d > "$RUN/logcat.txt"
-adb -s <serial> shell dmesg > "$RUN/dmesg.txt" 2>/dev/null || true
+```
+python $LOOP_HOME/tools/device.py clean <id> --key <KEY>
+python $LOOP_HOME/tools/lock.py release device-<id> --owner <KEY>
 ```
 
-Windows:
-```bash
-RUN=$LOOP_DOSSIER/<KEY>/device-runs/$(date +%Y%m%d-%H%M%S)-<slug>; mkdir -p "$RUN"
-START=$(ssh <host> 'powershell -NoProfile -Command "(Get-Date).ToString(''o'')"' | tr -d '\r')
-ssh <host> "powershell -NoProfile -Command \"cd C:/loop/<KEY>; <command>\"" 2>&1 | tee "$RUN/stdout.txt"
-ssh <host> "powershell -NoProfile -Command \"Get-WinEvent -FilterHashtable @{LogName='System','Application'; StartTime='$START'} -ErrorAction SilentlyContinue | Format-List TimeCreated,ProviderName,Id,LevelDisplayName,Message\"" > "$RUN/events.txt"
-scp -r "<host>:C:/loop/<KEY>/logs" "$RUN/" 2>/dev/null || true
-```
-
-Flaky or intermittent bugs: run N times (state N) and report the rate; one pass proves little.
-Performance numbers: state warm-up runs, iteration count, power mode, and whether the laptop was on AC power.
-
-## Cleanup
-
-Remove `<scratch>/<KEY>/` when the ticket is done (not between stages — the next stage may reuse it), restore any
-setting you changed, release the lock (`exec 9>&-`). Never delete the dossier run folders.
+Between stages within a ticket, release the lock anyway if you stop working, so others can use the device.
+Never delete dossier run folders.

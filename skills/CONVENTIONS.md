@@ -15,9 +15,21 @@ the dossier. Write for them.
 | `JIRA_URL`, `JIRA_TOKEN`, `JIRA_USER` | used by `$LOOP_HOME/tools/jira.py` |
 | `LOOP_OWNED` | space-separated repo-relative paths of the gits you may modify |
 
+## Shell and platform
+
+Commands in the skills are written once for both platforms: use `python` (Windows, or `py -3`) / `python3` (Linux),
+and read `$LOOP_HOME` as `$env:LOOP_HOME` in PowerShell. The agent may run on the Windows x64 or the Linux x64 build
+host; `skills/references/build-hosts.md` says what each host builds and how to reach the other one.
+
+| Tool | Use |
+|---|---|
+| `tools/jira.py` | read tickets, fetch attachments, propose comments / labels (dry-run unless `--apply`) |
+| `tools/lock.py` | named locks for devices (`device-<id>`), build-host checkouts (`build-<id>`), tree slots |
+| `tools/device.py` | every device action (doctor, push, run with log capture, pull, clean) |
+
 ## Sources of truth, in the order you consult them
 
-1. **Jira** — `python3 $LOOP_HOME/tools/jira.py fetch <KEY>` puts `ticket.md` and attachments in `$LOOP_DOSSIER/<KEY>/`.
+1. **Jira** — `python $LOOP_HOME/tools/jira.py fetch <KEY>` puts `ticket.md` and attachments in `$LOOP_DOSSIER/<KEY>/`.
 2. **Dossier** — `$LOOP_DOSSIER/<KEY>/HANDOFF.md` says what previous stages did. Read it first if it exists.
 3. **Knowledge repo** — `$LOOP_KNOWLEDGE/index.md`, then `lessons/`, `ops/`, `repos/<git>/overview.md`
    (build/test commands live there). Grep for the error string, op name, or symbol before reasoning from scratch.

@@ -16,25 +16,28 @@ This file is for agents (Codex, Claude Code) that **develop loop**. The skills i
 |---|---|
 | `skills/<name>/SKILL.md` | one skill per pipeline stage (Agent Skills format; YAML frontmatter `name`, `description`) |
 | `skills/CONVENTIONS.md`, `skills/references/` | rules and checklists shared by all skills |
-| `tools/` | deterministic helpers the skills call (`jira.py`) with their tests |
+| `tools/` | deterministic helpers the skills call (`jira.py`, `lock.py`, `device.py`) with their tests |
 | `knowledge-template/` | template for the internal knowledge repo (not the knowledge itself) |
 | `docs/` | SPEC, DESIGN, references (docforge structure) |
-| `*.example.yml` | config templates; the real `devices.yml`, `build-hosts.yml`, `loop.yml` are git-ignored |
+| `*.example.toml` | config templates; the real `devices.toml`, `build-hosts.toml`, `loop.toml` are git-ignored |
 
 ## Rules
 
 - **English** for all docs, code, comments, and commit messages.
 - **No company data in this repo**: no internal hostnames, tokens, ticket contents, logs, device serials, or
   knowledge pages. Those live in git-ignored files or internal repos. Check `git diff --cached` before committing.
-- **Tools are Python 3 standard library only**, so they run on any workstation or build server without installs.
+- **Tools are Python 3.11+ standard library only** and must run on **Windows x64 and Linux x64** (development
+  starts on Windows). Use `pathlib`, `subprocess` with argument lists (no shell strings unless required), TOML
+  (`tomllib`) for config, UTF-8 for every file read/write, and no bash-only features in anything a tool or skill
+  depends on. Write locks with `tools/lock.py`, not `flock`.
   Writes to external systems (Jira, Gerrit) are dry-run unless `--apply` is passed.
 - Every tool change comes with a test against a local fake server (see `tools/test_jira.py`).
-  Run: `python3 -m unittest discover -s tools -p 'test_*.py'`
+  Run: `python -m unittest discover -s tools -p "test_*.py"` (`python3` on Linux).
 - Skill changes: keep `SKILL.md` focused on the workflow; put long checklists in `references/`. A skill must say its
   input, its output files in the dossier, what it may write, and when it must stop and block. Reference shared
   files by `$LOOP_HOME/...`, since skills are symlinked into `~/.codex/skills` / `~/.claude/skills`.
 - After adding a skill, add it to the skills table in `README.md` and the agents table in `docs/DESIGN.md`, and
-  re-run `scripts/install-skills.sh`.
+  re-run `python scripts/install_skills.py`.
 - When implementation shows the design was wrong, update `docs/DESIGN.md` (or `docs/SPEC.md`) in the same change.
 
 ## Next work

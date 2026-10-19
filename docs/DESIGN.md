@@ -131,26 +131,30 @@ and passes, tests).
 ### Build hosts
 
 ```
-                 agent (Linux workstation / Linux build host)
-                    │ local                         │ ssh + PowerShell, change sent as a patch
+          agent (Codex) — on the Windows x64 host first, the Linux x64 host later
+                    │ local                         │ ssh, change sent as a hashed patch
                     ▼                               ▼
-     Linux x64 build host                    Windows x64 build host
-       linux-x64   (native: unit tests)        windows-x64   (native: unit tests)
-       linux-arm64 (cross)                     windows-arm64 (cross: vcvarsall x64_arm64 / clang-cl)
-       hexagon     (Hexagon SDK)
-                    │ artifacts + sha256            │
+     Windows x64 build host                  Linux x64 build host (added later)
+       windows-x64   (native: unit tests)      linux-x64   (native: unit tests)
+       windows-arm64 (cross: vcvarsall           linux-arm64 (cross)
+                      x64_arm64 / clang-cl)      hexagon     (Hexagon SDK)
+                    │ device.py push (sha256)       │
                     ▼                               ▼
-            arm64 Linux devices (adb / ssh)   Windows on Snapdragon devices (ssh)
+     Windows on Snapdragon devices (ssh)     arm64 Linux / Android devices (ssh / adb)
 ```
 
 - Fast gates (format, lint, Python tests, C++ unit tests) run on the x64 native build of the host.
 - arm64 targets are cross-built on their host; they can only be executed on a device (qemu user mode for
   `linux-arm64` unit tests is optional and never counts as NPU evidence).
 - A change in shared code is built on **both** hosts before upload.
-- The Windows host keeps its own checkout at the same base revision; the change travels as a patch with a recorded
-  hash, so the artifact on the device is traceable to an exact source state.
+- Whichever host the agent is not on keeps its own checkout at the same base revision; the change travels as a
+  patch with a recorded hash, so the artifact on the device is traceable to an exact source state.
+- On Windows, owned gits are plain `git` clones (the `repo` launcher has limited Windows support): branch with
+  `git switch -c loop/<KEY>`, upload with `git push origin HEAD:refs/for/<branch>%wip,topic=<KEY>`.
+- All loop tools are Python 3.11+ stdlib and run on both hosts; locks use `tools/lock.py` (lock files that survive
+  separate tool calls), not `flock`.
 - Details and pitfalls (LLP64, symbol export, paths, line endings): `skills/references/build-hosts.md`; hosts are
-  listed in `build-hosts.yml`.
+  listed in `build-hosts.toml`.
 
 - Gates are **per git**, discovered by `repo-onboard` from the Jenkinsfile and build files, verified by running
   them, and stored in `knowledge/repos/<git>/overview.md`. Agents never invent build commands.
@@ -217,9 +221,11 @@ multi-user access control is needed.
 
 ## Devices
 
-- Inventory in `devices.yml`: `os` (android / windows), transport (adb serial / ssh host), SoC, Hexagon arch,
+- All device actions go through `tools/device.py` (doctor, push with sha256, run with log capture, pull, clean),
+  which works from Windows or Linux.
+- Inventory in `devices.toml`: `os` (windows / linux / android), transport (adb serial / ssh host), SoC, Hexagon arch,
   build or driver version, scratch dir.
-- One `flock` lock per device; one agent at a time.
+- One lock per device (`tools/lock.py acquire device-<id> --owner <KEY>`); `device.py` refuses to act without it.
 - **Android:** `adb push`/`shell`/`pull`, `LD_LIBRARY_PATH` / `ADSP_LIBRARY_PATH` into scratch, `logcat` + `dmesg`.
 - **Windows on Snapdragon:** OpenSSH + PowerShell, `scp` into `C:/loop/<KEY>`, process-scoped `PATH`, `Get-WinEvent`
   for the run's time window, WER dumps; doctor records OS build and NPU driver version.

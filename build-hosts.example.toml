@@ -1,0 +1,24 @@
+# Copy to build-hosts.toml (git-ignored). The build servers agents may use.
+# The machine the agent runs on uses transport = "local"; the other host is driven over ssh.
+
+[[build_host]]
+id = "win-build-01"
+os = "windows"
+arch = "x64"
+transport = "local"          # primary development host for now
+targets = ["windows-x64", "windows-arm64"]
+tree = "D:/loop-work/tree"
+[build_host.toolchains]
+windows-arm64 = "<path to vcvarsall.bat> x64_arm64"
+
+[[build_host]]
+id = "linux-build-01"
+os = "linux"
+arch = "x64"
+transport = "ssh"            # becomes "local" when the agent moves to the Linux host
+host = "user@linux-build-01"
+targets = ["linux-x64", "linux-arm64", "hexagon"]
+tree = "/home/user/loop-work/tree"
+[build_host.toolchains]
+linux-arm64 = "<CMake toolchain file or compiler prefix, e.g. aarch64-linux-gnu->"
+hexagon = "<Hexagon SDK root>"

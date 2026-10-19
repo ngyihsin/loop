@@ -120,6 +120,12 @@ def cmd_search(j, args):
         print(f"{i['key']}\t{f['status']['name']}\t{','.join(f.get('labels') or [])}\t{f['summary']}")
 
 
+def safe_filename(name):
+    """Attachment names may contain characters Windows rejects."""
+    base = pathlib.PurePosixPath(name.replace("\\", "/")).name
+    return "".join("_" if c in '<>:"/\\|?*' or ord(c) < 32 else c for c in base).rstrip(". ") or "attachment"
+
+
 def cmd_fetch(j, args):
     """Download issue + attachments into a dossier directory (idempotent)."""
     out = pathlib.Path(args.dossier) / args.key
@@ -129,7 +135,7 @@ def cmd_fetch(j, args):
     (out / "ticket.md").write_text(render_issue(issue), encoding="utf-8")
     (out / "ticket.json").write_text(json.dumps(issue, indent=2, ensure_ascii=False), encoding="utf-8")
     for a in issue["fields"].get("attachment") or []:
-        target = att_dir / pathlib.Path(a["filename"]).name
+        target = att_dir / safe_filename(a["filename"])
         if target.exists() and target.stat().st_size == a.get("size"):
             print(f"skip   {target}")
             continue
@@ -164,6 +170,8 @@ def cmd_label(j, args):
 
 
 def main(argv=None):
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")  # Windows consoles may not encode every character
     p = argparse.ArgumentParser(prog="jira", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
 

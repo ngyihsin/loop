@@ -13,7 +13,7 @@ a rank-5 tensor, HTP supports rank ≤ 4 for Foo since SDK x.y, see `path:line`"
 
 ## 1. Collect
 
-1. `python3 $LOOP_HOME/tools/jira.py fetch <KEY>`; read `ticket.md`, then `HANDOFF.md` if a prior stage left one.
+1. `python $LOOP_HOME/tools/jira.py fetch <KEY>`; read `ticket.md`, then `HANDOFF.md` if a prior stage left one.
 2. Pin the environment. Fill this table from the ticket, attachments, or by asking the reporter
    (propose `agent:needs-info` if anything critical is missing):
 

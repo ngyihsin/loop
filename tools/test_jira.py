@@ -95,6 +95,10 @@ class JiraTest(unittest.TestCase):
             out = self.run_cli("fetch", "NPU-1", "--dossier", d)
             self.assertIn("skip", out)
 
+    def test_safe_filename_for_windows(self):
+        self.assertEqual(jira.safe_filename('trace 10:30 "a".txt'), "trace 10_30 _a_.txt")
+        self.assertEqual(jira.safe_filename("dir\\sub/log?.txt"), "log_.txt")
+
     def test_writes_are_dry_run_by_default(self):
         out = self.run_cli("label", "NPU-1", "--add", "agent:fix-ready", "--remove", "agent:analyze")
         self.assertIn("[dry-run] PUT", out)

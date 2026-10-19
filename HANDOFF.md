@@ -19,6 +19,7 @@ English). Docs are in English.
 > - ✅ Spec / Design v3 (C++/Python, Windows on Snapdragon, CodeAtlas tools)
 > - ✅ `tools/jira.py`: show / search / fetch (attachments) / comment / label; writes dry-run by default; DC/Cloud auto-detected from the URL
 > - ✅ Skills: `bug-analyze`, `device` (Android + Windows), `model-enable`, `feature-spec` (+ API/FastRPC checklist), `repo-onboard`
+> - ✅ Cross-platform tooling for Windows-first development: `lock.py`, `device.py`, `install_skills.py`, TOML inventories (15 tests)
 > - ✅ C++/Python gates reference; build-hosts reference (Linux x64 / Windows x64, arm64 cross builds); knowledge repo template
 > - ⬜ Evaluation: 3–5 solved bugs across layers + 1 past model-enablement ticket
 > - ⬜ `repo-onboard` run on each owned git, overview reviewed by the engineer
@@ -39,7 +40,8 @@ English). Docs are in English.
 | All Jira text in English; all repo docs in English | team convention |
 | Repo stays generic on external GitHub for now; company data git-ignored | moves to internal GitHub later |
 | Fast gates on the x64 native build; arm64 builds cross-compiled on their host and executed only on devices | arm64 binaries cannot run on x64 build hosts |
-| Agent runs on the Linux side; the Windows build host is driven over ssh, and the change travels as a hashed patch | one place for locks and dossiers; device artifacts stay traceable to an exact source state |
+| Develop on the Windows x64 host first (agent local there); the Linux x64 host is driven over ssh and added later; changes travel between hosts as hashed patches | engineer's choice; device artifacts stay traceable to an exact source state |
+| Tools are Python 3.11+ stdlib, cross-platform; device actions only via `device.py`; locks via `lock.py`; config in TOML | no bash / `flock` / YAML on Windows; locks must survive separate agent tool calls |
 
 ## Open Questions
 
@@ -63,7 +65,8 @@ English). Docs are in English.
 0. Move to internal git: clone this branch (`git clone -b claude/agent-dev-workflow-jira-6rad9o <url> loop`), create
    the internal repo, `git remote add internal <internal url>` and `git push internal HEAD:main`. Continue
    development there with Codex (it reads `AGENTS.md`).
-1. On the workstation: `scripts/install-skills.sh`, set the environment variables, `python3 tools/jira.py show <KEY>`.
+1. On the Windows x64 host: `python scripts\install_skills.py`, copy the `*.example.toml` files, set the environment
+   variables (README → Quick start), `python tools\jira.py show <KEY>`, run the tool tests.
 2. Copy `knowledge-template/` into a new internal git repo; run `/repo-onboard <git>` for each owned git and correct
    the generated `overview.md`.
 3. Run `/bug-analyze` and `/model-enable` on the evaluation tickets; report what was wrong or slow so the skills can
@@ -77,6 +80,9 @@ English). Docs are in English.
 - **Session 3 (2026-10-19):** C++/Python gates and `repo-onboard`; Windows on Snapdragon support in `device`;
   CodeAtlas tool names in all skills; Jira auth by URL (`JIRA_USER`); all docs translated to English.
 - **Session 4 (2026-10-19):** build hosts — Linux x64 and Windows x64 with arm64 cross builds; `build-hosts.md`,
-  `build-hosts.example.yml`; gates, repo-onboard, device provenance, and DESIGN updated.
+  `build-hosts.example.toml`; gates, repo-onboard, device provenance, and DESIGN updated.
 - **Session 5 (2026-10-19):** prepared the hand-over to internal development with Codex: `AGENTS.md` (repo dev
   rules), `CLAUDE.md` pointer, Codex setup notes in README.
+- **Session 6 (2026-10-19):** Windows-first development: `tools/lock.py`, `tools/device.py` (adb / ssh-Windows via
+  PowerShell `-EncodedCommand` / ssh-Linux / local), `scripts/install_skills.py` (symlink or junction), TOML
+  inventories, `.gitattributes`, Windows-safe Jira attachment names; device skill and build-hosts reference rewritten.

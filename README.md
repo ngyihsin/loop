@@ -10,28 +10,40 @@ reports) from "the engineer does it" to "an agent does it, the engineer reviews"
   mostly **C++ and Python**
 - **Tracking:** Jira · **Review:** Gerrit · **CI:** Jenkins
 - **Source:** Android `repo` manifest with many gits; agents write only in the 2–3 owned gits
-- **Agents:** Claude Code or Codex on the workstation / Linux build server
-- **Build hosts:** Linux x64 (→ cross arm64 Linux) and Windows x64 (→ cross arm64 Windows)
+- **Agents:** Codex (or Claude Code), developed on the **Windows x64** build host first, Linux x64 later
+- **Build hosts:** Windows x64 (→ cross arm64 Windows) and Linux x64 (→ cross arm64 Linux)
 - **Devices:** arm64 Linux / Android over adb or ssh, Windows on Snapdragon (arm64) over ssh
 - **Knowledge:** CodeAtlas MCP, Confluence, shared folders, internal GitHub, plus an internal knowledge repo
 
 ## Quick start (Phase 0, manual mode)
 
+Requires Python 3.11+, git, OpenSSH client (`ssh`, `scp`; built into Windows 10/11), and `adb` if you use adb devices.
+
+Windows x64 (PowerShell):
+```powershell
+git clone <internal url> D:\loop; cd D:\loop
+python scripts\install_skills.py                 # links skills into ~/.codex/skills and ~/.claude/skills
+Copy-Item devices.example.toml devices.toml       # your test devices
+Copy-Item build-hosts.example.toml build-hosts.toml
+setx LOOP_HOME D:\loop; setx LOOP_KNOWLEDGE D:\npu-knowledge; setx LOOP_OWNED "<git path> <git path>"
+setx JIRA_URL https://<your company jira>; setx JIRA_TOKEN <personal access token>
+# open a new terminal so setx values apply, then:
+python tools\jira.py show NPU-123                 # check the Jira connection
+python -m unittest discover -s tools -p "test_*.py"
+```
+
+Linux x64 (later):
 ```bash
-git clone <this repo> ~/loop && cd ~/loop
-scripts/install-skills.sh            # link skills/ into ~/.claude/skills and ~/.codex/skills
-cp devices.example.yml devices.yml   # fill in your test devices
-cp build-hosts.example.yml build-hosts.yml   # Linux x64 and Windows x64 build servers
-export LOOP_HOME=~/loop LOOP_KNOWLEDGE=~/npu-knowledge LOOP_OWNED="<git path> <git path>"
-export JIRA_URL=https://<your company jira> JIRA_TOKEN=<personal access token>
-python3 tools/jira.py show NPU-123   # check the Jira connection
+git clone <internal url> ~/loop && cd ~/loop && python3 scripts/install_skills.py
+cp devices.example.toml devices.toml; cp build-hosts.example.toml build-hosts.toml   # set transport = "local" for this host
+export LOOP_HOME=~/loop LOOP_KNOWLEDGE=~/npu-knowledge LOOP_OWNED="<git path> <git path>" JIRA_URL=... JIRA_TOKEN=...
 ```
 
 Then, inside the synced tree, open Claude Code or Codex and run `/repo-onboard <git path>` once per owned git,
 followed by `/bug-analyze NPU-123`, `/model-enable NPU-456`, or `/feature-spec NPU-789`.
 Jira writes are dry-run until you add `--apply`.
 
-**Codex setup:** `scripts/install-skills.sh codex` links the skills into `${CODEX_HOME:-~/.codex}/skills`
+**Codex setup:** `python scripts/install_skills.py codex` links the skills into `${CODEX_HOME:-~/.codex}/skills`
 (check your Codex version's skills folder if they don't show up). Register the CodeAtlas MCP server in
 `~/.codex/config.toml` with the same command or URL you use for Claude Code, for example:
 
@@ -62,7 +74,8 @@ token.)
 Shared rules: [skills/CONVENTIONS.md](skills/CONVENTIONS.md) · C++/Python gates:
 [skills/references/cpp-python-gates.md](skills/references/cpp-python-gates.md) · Build hosts:
 [skills/references/build-hosts.md](skills/references/build-hosts.md) · Tool: [tools/jira.py](tools/jira.py)
-(`python3 -m unittest tools/test_jira.py`) · Knowledge repo template: [knowledge-template/](knowledge-template/)
+· [tools/lock.py](tools/lock.py) · [tools/device.py](tools/device.py)
+(`python -m unittest discover -s tools -p "test_*.py"`) · Knowledge repo template: [knowledge-template/](knowledge-template/)
 (copy into an internal git, not into this repo).
 
 ## Docs
@@ -72,7 +85,7 @@ Shared rules: [skills/CONVENTIONS.md](skills/CONVENTIONS.md) · C++/Python gates
 | [docs/SPEC.md](docs/SPEC.md) | what, why, non-goals, success criteria |
 | [docs/DESIGN.md](docs/DESIGN.md) | architecture, agents, Jira state machine, workspace, gates, knowledge, devices |
 | [docs/references.md](docs/references.md) | what we borrow from the six reference projects |
-| [loop.example.yml](loop.example.yml) | orchestrator config draft |
+| [loop.example.toml](loop.example.toml) | orchestrator config draft |
 | [HANDOFF.md](HANDOFF.md) | status, open questions, next actions |
 
 ## One-line architecture
